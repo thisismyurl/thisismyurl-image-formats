@@ -132,7 +132,9 @@ class Plugin {
 					? sprintf( /* translators: %s: amount of space, for example "3 MB" */ __( 'It now takes up %s less space.', 'thisismyurl-image-formats' ), size_format( $saved ) )
 					: sprintf( /* translators: %s: amount of space, for example "3 MB" */ __( 'It now takes up %s more space.', 'thisismyurl-image-formats' ), size_format( abs( $saved ) ) )
 			) . '</p>';
-			if ( 0 === strpos( (string) $info['backup'], 'local:' ) ) {
+			if ( Converter::is_shared( $post->ID ) ) {
+				echo '<p>' . esc_html__( 'Another picture in your Media Library uses the same file, so this one cannot be put back from here. Your original is saved safely.', 'thisismyurl-image-formats' ) . '</p>';
+			} elseif ( 0 === strpos( (string) $info['backup'], 'local:' ) ) {
 				echo '<p>' . esc_html__( 'Your original is saved safely. You can put it back whenever you like. Your title, caption and description will not change.', 'thisismyurl-image-formats' ) . '</p>';
 				Actions::queue_form( Actions::RESTORE, $post->ID );
 				echo '<p><button type="submit" class="button" form="' . esc_attr( Actions::form_id( Actions::RESTORE, $post->ID ) ) . '">' . esc_html__( 'Put the original back', 'thisismyurl-image-formats' ) . '</button></p>';

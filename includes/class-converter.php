@@ -270,6 +270,16 @@ class Converter {
 	}
 
 	/**
+	 * Public form of shared_file(), for the box on a picture's screen.
+	 *
+	 * @param int $attachment_id Attachment ID.
+	 * @return bool
+	 */
+	public static function is_shared( $attachment_id ) {
+		return self::shared_file( (int) $attachment_id );
+	}
+
+	/**
 	 * Does another picture in the Library use the very same file? (Some translation plugins do this.) Changing one would break the other.
 	 *
 	 * @param int $attachment_id Attachment ID.
@@ -364,7 +374,7 @@ class Converter {
 			if ( ! empty( $info[ $key ] ) && 0 === strpos( (string) $info[ $key ], 'local:' ) ) {
 				$file = Backup::resolve( substr( (string) $info[ $key ], 6 ) );
 				// Another picture's note (a copy made by a translation plugin) may point at the same saved original. Then it stays.
-				$like   = '%' . $wpdb->esc_like( substr( (string) $info[ $key ], 6 ) ) . '%';
+				$like   = '%' . $wpdb->esc_like( '"' . (string) $info[ $key ] . '"' ) . '%';
 				$shared = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s AND post_id <> %d AND meta_value LIKE %s", self::META_ORIGINAL, (int) $attachment_id, $like ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 				if ( '' !== $file && 0 === $shared ) {
 					wp_delete_file( $file );
@@ -576,37 +586,49 @@ class Converter {
 	 * @return string Absolute path.
 	 */
 	private static function exact_or_unique( $dir, $base, array $own ) {
-		$path = trailingslashit( $dir ) . $base;
-		if ( file_exists( $path ) || in_array( wp_normalize_path( $path ), $own, true ) ) {
-			return self::unique_path( $dir, $base, $own );
-		}
-		$name  = pathinfo( $base, PATHINFO_FILENAME );
-		$match = '/^' . preg_quote( $name, '/' ) . '(-scaled|-rotated)?(-\d+x\d+)?\.[a-z0-9]+$/i';
-		$files = is_dir( $dir ) ? (array) scandir( $dir ) : array();
-		foreach ( $files as $file ) {
-			if ( 1 === preg_match( $match, $file ) && ! in_array( wp_normalize_path( trailingslashit( $dir ) . $file ), $own, true ) ) {
-				return self::unique_path( $dir, $base, $own );
-			}
-		}
-		return $path;
+		return self::name_taken( $dir, $base, $own ) ? self::unique_path( $dir, $base, $own ) : trailingslashit( $dir ) . $base;
 	}
 
 	/**
-	 * A free name that is neither on disk nor one of this picture's own files, even one that has just been removed.
+	 * Is a file name unsafe to give a restored picture? It is if the file exists, if it is one of the picture's own (possibly just removed)
+	 * files, or if any other file in the folder shares its name in any format (a JPEG made next to a BMP, a thumbnail, a -scaled copy).
+	 *
+	 * @param string   $dir      Folder.
+	 * @param string   $filename File name.
+	 * @param string[] $own      Normalised paths of the picture's own files.
+	 * @return bool
+	 */
+	private static function name_taken( $dir, $filename, array $own ) {
+		$path = trailingslashit( $dir ) . $filename;
+		if ( file_exists( $path ) || in_array( wp_normalize_path( $path ), $own, true ) ) {
+			return true;
+		}
+		$name  = pathinfo( $filename, PATHINFO_FILENAME );
+		$match = '/^' . preg_quote( $name, '/' ) . '(-scaled|-rotated)?(-\d+x\d+)?\.[a-z0-9]+$/i';
+		foreach ( is_dir( $dir ) ? (array) scandir( $dir ) : array() as $file ) {
+			if ( 1 === preg_match( $match, $file ) && ! in_array( wp_normalize_path( trailingslashit( $dir ) . $file ), $own, true ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * A free name: one that WordPress would give and that also passes name_taken(). Gives up after a thousand tries.
 	 *
 	 * @param string   $dir  Folder.
 	 * @param string   $base File name.
 	 * @param string[] $own  Normalised paths of the picture's own files.
-	 * @return string Absolute path.
+	 * @return string Absolute path, or an empty string.
 	 */
 	private static function unique_path( $dir, $base, array $own ) {
 		$name = pathinfo( $base, PATHINFO_FILENAME );
 		$ext  = pathinfo( $base, PATHINFO_EXTENSION );
 		$try  = wp_unique_filename( $dir, $base );
 		$i    = 1;
-		while ( in_array( wp_normalize_path( trailingslashit( $dir ) . $try ), $own, true ) ) {
+		while ( self::name_taken( $dir, $try, $own ) ) {
 			if ( $i > 1000 ) {
-				return ''; // A site filter keeps giving the same name. Give up rather than loop.
+				return ''; // Nothing free was found. Give up rather than loop.
 			}
 			$try = wp_unique_filename( $dir, $name . '-' . $i . ( '' !== $ext ? '.' . $ext : '' ) );
 			++$i;
@@ -842,7 +864,7 @@ class Converter {
 		$owners   = get_posts(
 			array(
 				'post_type'      => 'attachment',
-				'post_status'    => 'any',
+				'post_status'    => array( 'inherit', 'private', 'publish', 'trash' ),
 				'meta_key'       => '_wp_attached_file', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- a single, bounded lookup.
 				'meta_value'     => $relative, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 				'fields'         => 'ids',

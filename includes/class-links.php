@@ -54,6 +54,21 @@ class Links {
 		}
 		add_action( 'timu_formats_converted', array( __CLASS__, 'rebuild' ) );
 		add_action( 'timu_formats_restored', array( __CLASS__, 'rebuild' ) );
+		add_action( 'delete_attachment', array( __CLASS__, 'on_delete' ) );
+	}
+
+	/**
+	 * A changed picture is being deleted for good: rebuild the list once, after the request, so its old addresses stop being swapped.
+	 *
+	 * @param int $attachment_id Attachment ID.
+	 * @return void
+	 */
+	public static function on_delete( $attachment_id ) {
+		static $queued = false;
+		if ( ! $queued && get_post_meta( (int) $attachment_id, Converter::META_OLD_URLS, true ) ) {
+			$queued = true;
+			add_action( 'shutdown', array( __CLASS__, 'rebuild' ) );
+		}
 	}
 
 	/**
@@ -81,13 +96,18 @@ class Links {
 			'#(?:https?:)?//[^\s"\'<>()\\\\?\#&,;]+#',
 			static function ( $m ) use ( $map ) {
 				$candidate = $m[0];
-				$key       = preg_replace( '#^(?:https?:)?//#', 'https://', $candidate );
+				// A full stop that ends a sentence is not part of the address.
+				$trail = '.' === substr( $candidate, -1 ) ? '.' : '';
+				if ( '' !== $trail ) {
+					$candidate = substr( $candidate, 0, -1 );
+				}
+				$key = preg_replace( '#^(?:https?:)?//#', 'https://', $candidate );
 				// An old address that now has a real file behind it belongs to some other picture. Leave it alone.
 				if ( ! isset( $map[ $key ] ) || self::is_live( $key ) ) {
-					return $candidate;
+					return $candidate . $trail;
 				}
 				$scheme = preg_match( '#^(https?:)//#', $candidate, $s ) ? $s[1] : '';
-				return $scheme . substr( $map[ $key ], 6 );
+				return $scheme . substr( $map[ $key ], 6 ) . $trail;
 			},
 			$content
 		);

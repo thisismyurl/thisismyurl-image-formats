@@ -29,13 +29,13 @@ Some picture files cannot be shown on a website at all. BMP, TIFF and the HEIC p
 
 * The picture's title, caption and description are not touched.
 * Camera details, such as the date and exposure, are kept in the Media Library details for the picture. (The new picture file itself may not carry them. Your original does.)
-* WordPress still shrinks very large pictures by itself, as it always has. If you change a picture that WordPress has already shrunk, the large original it kept is moved into the safe folder too, so it can be put back.
+* WordPress still shrinks very large pictures by itself, as it always has. If you change a picture that WordPress has already shrunk, the large original it kept is moved into the safe folder too (when copies are turned on), so it can be put back.
 
 You do not need to change any settings. They are already chosen for you. If you want to look, go to Media, then Image Formats.
 
 **Needs your website to be able to make the new kind of picture.** Most websites can. The settings page tells you which kinds yours can make. If your website cannot make a picture, nothing is changed. When you press the button, a message says so in plain words. When a picture is added, it is simply added as it was.
 
-**Pictures it leaves alone.** To keep your work safe, it will not change a picture you have cropped or turned inside WordPress, a picture with extra files that belong with it, a file that two pictures in your Library share, or an animated PNG (changing it would keep only the first frame). The page explains why.
+**Pictures it leaves alone.** To keep your work safe, it will not change a picture you have cropped or turned inside WordPress, a picture with extra files that belong with it, a file that two pictures in your Library share (the same goes for putting back), or an animated PNG (changing it would keep only the first frame). The page explains why.
 
 **Works well with Image Support.** Image Support, from the same author, shows you which pictures need a description or are far too large. It is not needed for this plugin to work.
 
@@ -57,7 +57,7 @@ No. A copy is saved in a safe folder first, and you can put it back with one but
 
 = Where are my originals kept? =
 
-In a folder inside your uploads folder, called "timu-formats-backups" followed by a random ending. The folder is usually closed to visitors on Apache and IIS servers, and on other servers its random name is what keeps it private. Treat it like your pictures: a saved original, such as an iPhone picture, can still hold details like where it was taken. While this plugin is turned on, deleting a picture for good also deletes its saved original. If you delete this plugin from the Plugins screen, the folder is left in place on purpose, so your originals are not lost. You can delete it yourself when you are sure you do not need them.
+In a folder inside your uploads folder, called "timu-formats-backups" followed by a random ending. The folder is usually closed to visitors on Apache and IIS servers, and on other servers its random name is what keeps it private. Treat it like your pictures: a saved original, such as an iPhone picture, can still hold details like where it was taken. While this plugin is turned on, deleting a picture for good also deletes its saved original, unless another picture's note still uses it. If you delete this plugin from the Plugins screen, the folder is left in place on purpose, so your originals are not lost. You can delete it yourself when you are sure you do not need them.
 
 = What does putting the original back do? =
 
