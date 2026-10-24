@@ -20,8 +20,8 @@ class Plugin {
 	 * @return void
 	 */
 	public static function boot() {
-		load_plugin_textdomain( 'thisismyurl-image-formats', false, dirname( plugin_basename( TIMU_FORMATS_FILE ) ) . '/languages' );
 		Upload::register();
+		Links::register();
 		if ( is_admin() ) {
 			Actions::register();
 		}

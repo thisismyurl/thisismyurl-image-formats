@@ -3,13 +3,22 @@
 .gitattributes
 .gitignore
 .distignore
+.wordpress-org
 node_modules
+vendor
 tests
+build
 phpcs.xml.dist
 composer.json
 composer.lock
 package.json
-README.md
-CONTRIBUTING.md
 *.log
 .DS_Store
+
+# Repository surface, not plugin runtime.
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+SUPPORT.md

@@ -16,7 +16,8 @@ defined( 'ABSPATH' ) || exit;
  */
 class Backup {
 
-	const DIR = 'timu-formats-backups';
+	const DIR    = 'timu-formats-backups';
+	const TOKEN  = 'timu_formats_token';
 
 	/**
 	 * Where the original goes, given the setting.
@@ -37,7 +38,13 @@ class Backup {
 		if ( ! empty( $uploads['error'] ) ) {
 			return '';
 		}
-		$dir = trailingslashit( $uploads['basedir'] ) . self::DIR . '/';
+		// A random ending on the folder name, so that on a server that ignores the access rule below the folder still cannot be guessed.
+		$token = (string) get_option( self::TOKEN, '' );
+		if ( '' === $token ) {
+			$token = strtolower( wp_generate_password( 16, false, false ) );
+			update_option( self::TOKEN, $token, false );
+		}
+		$dir = trailingslashit( $uploads['basedir'] ) . self::DIR . '-' . $token . '/';
 		if ( ! is_dir( $dir ) && ! wp_mkdir_p( $dir ) ) {
 			return '';
 		}
