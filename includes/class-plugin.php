@@ -23,6 +23,7 @@ class Plugin {
 		Upload::register();
 		Links::register();
 		add_filter( 'wp_generate_attachment_metadata', array( Converter::class, 'release' ), 99, 2 );
+		add_action( 'delete_attachment', array( Converter::class, 'forget_backup' ) );
 		if ( is_admin() ) {
 			Actions::register();
 		}
@@ -149,6 +150,9 @@ class Plugin {
 				return;
 			}
 			$why = Converter::refusal_reason( $post->ID );
+			if ( '' === $why && ! in_array( $target, array_values( get_allowed_mime_types() ), true ) ) {
+				$why = 'type not allowed';
+			}
 			if ( '' !== $why ) {
 				echo '<p>' . esc_html( Actions::reason( $why ) ) . '</p></div>';
 				return;

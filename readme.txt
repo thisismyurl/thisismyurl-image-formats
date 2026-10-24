@@ -19,7 +19,7 @@ Some picture files cannot be shown on a website at all. BMP, TIFF and the HEIC p
 
 **What it does**
 
-* When you add a BMP, TIFF or iPhone (HEIC) picture to your Media Library, it changes it into a picture that works on a website. BMP and TIFF become PNG, which keeps the detail (a few unusual colour types can shift slightly). HEIC becomes the best kind your website can make. (A TIFF with several pages keeps only its first page.)
+* When you add a BMP, TIFF or iPhone (HEIC) picture to your Media Library, it changes it into a picture that works on a website. By default, BMP and TIFF become PNG, which keeps the detail (a few unusual colour types can shift slightly). HEIC becomes the best kind your website can make. (A TIFF with several pages keeps only its first page.)
 * On the page of a picture that can be changed there is a button to change it, and a button to put the original back. The page says why when a picture cannot be changed.
 * Links to a changed picture keep working while this plugin is turned on. If the picture was already used in a page or post, the old link is swapped for the new one when the page is shown. Nothing you wrote is edited. This covers the text of pages, posts and widgets (see the questions below).
 * It shows how much space each change saved.
@@ -57,11 +57,11 @@ No. A copy is saved in a safe folder first, and you can put it back with one but
 
 = Where are my originals kept? =
 
-In a folder inside your uploads folder, called "timu-formats-backups" followed by a random ending. The folder is usually closed to visitors on Apache and IIS servers, and on other servers its random name is what keeps it private. Treat it like your pictures: a saved original, such as an iPhone picture, can still hold details like where it was taken. If you delete this plugin from the Plugins screen, the folder is left in place on purpose, so your originals are not lost. You can delete it yourself when you are sure you do not need them.
+In a folder inside your uploads folder, called "timu-formats-backups" followed by a random ending. The folder is usually closed to visitors on Apache and IIS servers, and on other servers its random name is what keeps it private. Treat it like your pictures: a saved original, such as an iPhone picture, can still hold details like where it was taken. When you delete a picture for good, its saved original is deleted with it. If you delete this plugin from the Plugins screen, the folder is left in place on purpose, so your originals are not lost. You can delete it yourself when you are sure you do not need them.
 
 = What does putting the original back do? =
 
-It brings back the exact file you added, with its old file name, and points links made since the change back at it. Crops made after the change are not kept. For an iPhone (HEIC) picture, WordPress may also make its own JPEG copy for showing on the website; your original file is kept as well.
+It brings back the file you added, usually with its old file name. If another picture now uses that name, a new name is used and links are still pointed at it. Links made since the change are pointed back at the original too. Crops made after the change are not kept. For an iPhone (HEIC) picture, WordPress may also make its own JPEG copy for showing on the website; your original file is kept as well.
 
 = Will my picture's title, caption and description change? =
 
@@ -69,7 +69,7 @@ No. Those stay exactly as they are. Camera details are kept in the Media Library
 
 = Will pictures already used in my pages stop showing? =
 
-Not while this plugin is turned on. When a picture is changed, its web address changes. The plugin swaps the old address for the new one when the page is shown, in the text of pages, posts and widgets. The pages themselves are never edited, so putting the original back makes the old address work again, and links made since the change are pointed back at the original. Links in other places, such as menus, theme settings and page builders, are not swapped. In the editor, a changed picture that is already in a page may show as missing, but the page you visit is fine.
+Not while this plugin is turned on. When a picture is changed, its web address changes. The plugin swaps the old address for the new one when the page is shown, in the text of pages, posts and widgets. The pages themselves are never edited, so putting the original back makes the old address work again, and links made since the change are pointed back at the original. Links in other places, such as menus, theme settings and page builders, are not swapped. If a new picture is later added with the same file name as an old one, the new picture keeps that name and links are not swapped over it. In the editor, a changed picture that is already in a page may show as missing, but the page you visit is fine.
 
 = What if I turn the plugin off? =
 
@@ -115,7 +115,7 @@ Yes. The `timu_formats_quality`, `timu_formats_target_mime` and `timu_formats_co
 = 1.6297 =
 * First public release.
 * Changes BMP, TIFF and iPhone (HEIC) pictures into pictures websites can show, when you add them or when you press a button on a picture's page.
-* A safe copy of every original is kept, and can be put back with one button.
+* By default a safe copy of every original is kept, and can be put back with one button.
 * Links to a changed picture keep working, without editing your pages.
 * Optionally makes new JPEG and PNG pictures smaller (not animated PNGs).
 * Command line support: `wp timu-formats status`, `convert` and `restore`.

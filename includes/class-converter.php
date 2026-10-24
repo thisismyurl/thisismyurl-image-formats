@@ -111,8 +111,7 @@ class Converter {
 		$size    = $editor->get_size();
 		$rotated = false;
 		if ( in_array( $source_mime, array( 'image/jpeg', 'image/heic', 'image/heif' ), true ) && method_exists( $editor, 'maybe_exif_rotate' ) ) {
-			$editor->maybe_exif_rotate();
-			$rotated = true; // The pixels are upright now, so the new file must not be turned again.
+			$rotated = ( true === $editor->maybe_exif_rotate() ); // The pixels are upright now, so the new file must not be turned again.
 		}
 		$editor->set_quality( Policy::quality_for( $target_mime, $source_mime ) );
 
@@ -303,16 +302,59 @@ class Converter {
 	 * @return bool
 	 */
 	public static function is_animated_png( $path ) {
-		if ( ! is_string( $path ) || ! is_file( $path ) || 'image/png' !== wp_get_image_mime( $path ) ) {
+		if ( ! is_string( $path ) || ! is_file( $path ) ) {
 			return false;
 		}
-		$head = file_get_contents( $path, false, null, 0, 65536 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-		if ( false === $head ) {
+		$h = fopen( $path, 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+		if ( ! $h ) {
 			return false;
 		}
-		$actl = strpos( $head, 'acTL' );
-		$idat = strpos( $head, 'IDAT' );
-		return false !== $actl && ( false === $idat || $actl < $idat );
+		$animated = false;
+		if ( "\x89PNG\r\n\x1a\n" === fread( $h, 8 ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
+			// Walk the chunks: an animation control chunk comes before the first image data.
+			for ( $i = 0; $i < 200; $i++ ) {
+				$head = fread( $h, 8 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
+				if ( 8 !== strlen( (string) $head ) ) {
+					break;
+				}
+				$len  = (int) unpack( 'N', substr( $head, 0, 4 ) )[1];
+				$type = substr( $head, 4, 4 );
+				if ( 'acTL' === $type ) {
+					$animated = true;
+					break;
+				}
+				if ( 'IDAT' === $type || 'IEND' === $type ) {
+					break;
+				}
+				if ( 0 !== fseek( $h, $len + 4, SEEK_CUR ) ) {
+					break;
+				}
+			}
+		}
+		fclose( $h ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+		return $animated;
+	}
+
+	/**
+	 * When a changed picture is deleted for good, its saved original goes with it.
+	 *
+	 * @param int $attachment_id Attachment ID.
+	 * @return void
+	 */
+	public static function forget_backup( $attachment_id ) {
+		$info = get_post_meta( (int) $attachment_id, self::META_ORIGINAL, true );
+		if ( ! is_array( $info ) ) {
+			return;
+		}
+		foreach ( array( 'backup', 'backup_original' ) as $key ) {
+			if ( ! empty( $info[ $key ] ) && 0 === strpos( (string) $info[ $key ], 'local:' ) ) {
+				$file = Backup::resolve( substr( (string) $info[ $key ], 6 ) );
+				if ( '' !== $file ) {
+					wp_delete_file( $file );
+					self::tidy_backup_folder( dirname( $file ) );
+				}
+			}
+		}
 	}
 
 	/**
@@ -517,20 +559,39 @@ class Converter {
 	 * @return string Absolute path.
 	 */
 	private static function exact_or_unique( $dir, $base, array $own ) {
-		$path   = trailingslashit( $dir ) . $base;
-		$unique = trailingslashit( $dir ) . wp_unique_filename( $dir, $base );
-		if ( file_exists( $path ) ) {
-			return $unique;
+		$path = trailingslashit( $dir ) . $base;
+		if ( file_exists( $path ) || in_array( wp_normalize_path( $path ), $own, true ) ) {
+			return self::unique_path( $dir, $base, $own );
 		}
 		$name  = pathinfo( $base, PATHINFO_FILENAME );
 		$match = '/^' . preg_quote( $name, '/' ) . '(-scaled|-rotated)?(-\d+x\d+)?\.[a-z0-9]+$/i';
 		$files = is_dir( $dir ) ? (array) scandir( $dir ) : array();
 		foreach ( $files as $file ) {
 			if ( 1 === preg_match( $match, $file ) && ! in_array( wp_normalize_path( trailingslashit( $dir ) . $file ), $own, true ) ) {
-				return $unique;
+				return self::unique_path( $dir, $base, $own );
 			}
 		}
 		return $path;
+	}
+
+	/**
+	 * A free name that is neither on disk nor one of this picture's own files, even one that has just been removed.
+	 *
+	 * @param string   $dir  Folder.
+	 * @param string   $base File name.
+	 * @param string[] $own  Normalised paths of the picture's own files.
+	 * @return string Absolute path.
+	 */
+	private static function unique_path( $dir, $base, array $own ) {
+		$name = pathinfo( $base, PATHINFO_FILENAME );
+		$ext  = pathinfo( $base, PATHINFO_EXTENSION );
+		$try  = wp_unique_filename( $dir, $base );
+		$i    = 1;
+		while ( in_array( wp_normalize_path( trailingslashit( $dir ) . $try ), $own, true ) ) {
+			$try = wp_unique_filename( $dir, $name . '-' . $i . ( '' !== $ext ? '.' . $ext : '' ) );
+			++$i;
+		}
+		return trailingslashit( $dir ) . $try;
 	}
 
 	/**
@@ -595,11 +656,42 @@ class Converter {
 	 * @return array|WP_Error
 	 */
 	private static function restore_locked( $attachment_id, array $info, $source ) {
-		$current = get_attached_file( $attachment_id );
+		// Read again now that the lock is held: another request may have finished first.
+		$fresh = get_post_meta( $attachment_id, self::META_ORIGINAL, true );
+		if ( ! is_array( $fresh ) || empty( $fresh['backup'] ) ) {
+			return new WP_Error( 'timu_formats_nothing', __( 'This picture has not been changed by this tool.', 'thisismyurl-image-formats' ) );
+		}
+		$info   = $fresh;
+		$source = Backup::resolve( substr( (string) $info['backup'], 6 ) );
+		$file   = get_attached_file( $attachment_id );
+		if ( '' === $source || ! $file || empty( $info['file'] ) || empty( $info['mime'] ) ) {
+			return new WP_Error( 'timu_formats_backup_missing', __( 'The saved copy of the original could not be found.', 'thisismyurl-image-formats' ) );
+		}
+		$current = $file;
 		$dir     = dirname( $current );
 		$base    = wp_basename( $info['file'] );
-		$own     = self::own_files( $attachment_id, $current );
-		$dest    = self::exact_or_unique( $dir, $base, $own );
+		$orphan  = ! empty( $info['new_file'] ) ? trailingslashit( $dir ) . wp_basename( (string) $info['new_file'] ) : '';
+
+		// A change that stopped before it removed anything: the original is still in place, so only the half-made new file has to go.
+		if ( isset( $info['state'] ) && 'pending' === $info['state'] && wp_basename( $current ) === $base && is_file( $current ) && filesize( $current ) === filesize( $source ) ) {
+			if ( '' !== $orphan && is_file( $orphan ) && wp_normalize_path( $orphan ) !== wp_normalize_path( $current ) ) {
+				wp_delete_file( $orphan );
+			}
+			wp_delete_file( $source );
+			self::tidy_backup_folder( dirname( $source ) );
+			if ( ! empty( $info['backup_original'] ) ) {
+				$kept = Backup::resolve( substr( (string) $info['backup_original'], 6 ) );
+				if ( '' !== $kept ) {
+					wp_delete_file( $kept );
+					self::tidy_backup_folder( dirname( $kept ) );
+				}
+			}
+			delete_post_meta( $attachment_id, self::META_ORIGINAL );
+			return array( 'status' => 'restored', 'mime' => $info['mime'] );
+		}
+
+		$own  = self::own_files( $attachment_id, $current );
+		$dest = self::exact_or_unique( $dir, $base, $own );
 
 		// Put the large original back too, when one was kept.
 		$orig_src  = '';
@@ -648,6 +740,13 @@ class Converter {
 				$meta['original_image'] = wp_basename( $orig_dest );
 			}
 			wp_update_attachment_metadata( $attachment_id, $meta );
+		}
+		// Only now that the restored file is in place and the right size is the saved copy let go of.
+		if ( ! is_file( $dest ) || filesize( $dest ) !== filesize( $source ) || ( '' !== $orig_src && ( ! is_file( $orig_dest ) || filesize( $orig_dest ) !== filesize( $orig_src ) ) ) ) {
+			return new WP_Error( 'timu_formats_restore_verify', __( 'The original could not be checked after it was put back, so the saved copy was kept. Nothing was lost.', 'thisismyurl-image-formats' ) );
+		}
+		if ( '' !== $orphan && is_file( $orphan ) && wp_normalize_path( $orphan ) !== wp_normalize_path( $dest ) ) {
+			wp_delete_file( $orphan );
 		}
 		wp_delete_file( $source );
 		self::tidy_backup_folder( dirname( $source ) );

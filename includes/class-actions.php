@@ -119,7 +119,7 @@ class Actions {
 		if ( is_wp_error( $r ) ) {
 			self::flash( 'error', $r->get_error_message() );
 		} else {
-			self::flash( 'success', __( 'Done. Your original picture is back, just as it was before. Its title, caption and description were not touched.', 'thisismyurl-image-formats' ) );
+			self::flash( 'success', __( 'Done. Your original picture is back. Its title, caption and description were not touched.', 'thisismyurl-image-formats' ) );
 		}
 		self::back( $id );
 	}

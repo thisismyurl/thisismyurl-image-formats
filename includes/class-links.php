@@ -66,27 +66,31 @@ class Links {
 		if ( ! is_string( $content ) || '' === $content ) {
 			return $content;
 		}
+		$uploads = wp_get_upload_dir();
+		$base    = preg_replace( '#^https?:#', '', (string) $uploads['baseurl'] );
+		if ( '' === $base || false === strpos( $content, $base ) ) {
+			return $content;
+		}
 		$map = self::map();
 		if ( ! $map ) {
 			return $content;
 		}
-		$use = array();
-		foreach ( $map as $old => $new ) {
-			// An old address that now has a real file behind it belongs to some other picture. Leave it alone.
-			$http_old = 'http' . substr( $old, 5 );
-			$has_s    = false !== strpos( $content, $old );
-			$has_p    = false !== strpos( $content, $http_old );
-			if ( ( $has_s || $has_p ) && self::is_live( $old ) ) {
-				continue;
-			}
-			if ( $has_s ) {
-				$use[ $old ] = $new;
-			}
-			if ( $has_p ) {
-				$use[ $http_old ] = 'http' . substr( $new, 5 );
-			}
-		}
-		return $use ? strtr( $content, $use ) : $content;
+		// Look at the addresses the content really contains, so the work depends on the page and not on how many pictures were changed. Each
+		// address is replaced as a whole, so a longer name that merely starts with an old one is never half-replaced.
+		return (string) preg_replace_callback(
+			'#(?:https?:)?//[^\s"\'<>()\\\\]+#',
+			static function ( $m ) use ( $map ) {
+				$candidate = $m[0];
+				$key       = preg_replace( '#^(?:https?:)?//#', 'https://', $candidate );
+				// An old address that now has a real file behind it belongs to some other picture. Leave it alone.
+				if ( ! isset( $map[ $key ] ) || self::is_live( $key ) ) {
+					return $candidate;
+				}
+				$scheme = preg_match( '#^(https?:)//#', $candidate, $s ) ? $s[1] : '';
+				return $scheme . substr( $map[ $key ], 6 );
+			},
+			$content
+		);
 	}
 
 	/**
@@ -185,13 +189,6 @@ class Links {
 			}
 			++$page;
 		} while ( 500 === count( $ids ) );
-		// Longest first, so a sized address is never half-replaced by a shorter one.
-		uksort(
-			$map,
-			static function ( $a, $b ) {
-				return strlen( $b ) - strlen( $a );
-			}
-		);
 		update_option( self::OPTION, $map, false );
 		self::$map = $map;
 		return $map;

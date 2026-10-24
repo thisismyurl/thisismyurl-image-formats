@@ -76,10 +76,6 @@ class Upload {
 		// The block editor's upload reaches this point before WordPress has loaded its picture functions.
 		require_once ABSPATH . 'wp-admin/includes/image.php';
 		$source = strtolower( $upload['type'] );
-		if ( 'image/png' === $source && Converter::is_animated_png( $upload['file'] ) ) {
-			return $upload; // Converting would keep only the first frame.
-		}
-
 		/**
 		 * Return false to leave this upload exactly as it is.
 		 *
@@ -94,6 +90,10 @@ class Upload {
 		if ( '' === $target || ! in_array( $target, array_values( get_allowed_mime_types() ), true ) ) {
 			return $upload;
 		}
+		if ( 'image/png' === $source && Converter::is_animated_png( $upload['file'] ) ) {
+			return $upload; // Converting would keep only the first frame.
+		}
+
 
 		$new = Converter::convert_file( $upload['file'], $source, $target );
 		if ( is_wp_error( $new ) ) {
