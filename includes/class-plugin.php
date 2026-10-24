@@ -22,6 +22,9 @@ class Plugin {
 	public static function boot() {
 		load_plugin_textdomain( 'thisismyurl-image-formats', false, dirname( plugin_basename( TIMU_FORMATS_FILE ) ) . '/languages' );
 		Upload::register();
+		if ( is_admin() ) {
+			Actions::register();
+		}
 		add_filter( 'wp_read_image_metadata', array( __CLASS__, 'carry_image_meta' ), 10, 2 );
 		if ( is_admin() ) {
 			add_action( 'admin_init', array( Settings::class, 'register_setting' ) );
@@ -67,29 +70,52 @@ class Plugin {
 	}
 
 	/**
-	 * Show what happened to a converted image on its attachment screen.
+	 * On a picture's screen: what happened to it, and the one button that makes sense next. Always says whether it can be undone.
 	 *
 	 * @param array    $fields Existing fields.
 	 * @param \WP_Post $post   Attachment.
 	 * @return array
 	 */
 	public static function attachment_note( $fields, $post ) {
-		$info = get_post_meta( $post->ID, Converter::META_ORIGINAL, true );
-		if ( ! is_array( $info ) ) {
+		if ( ! wp_attachment_is_image( $post->ID ) || ! current_user_can( 'edit_post', $post->ID ) || ! current_user_can( 'upload_files' ) ) {
 			return $fields;
 		}
-		$saved = (int) get_post_meta( $post->ID, Converter::META_SAVINGS, true );
-		$text  = sprintf(
-			/* translators: 1: original format, 2: new format, 3: bytes saved (may be negative) */
-			__( 'Converted from %1$s to %2$s. Size change: %3$s.', 'thisismyurl-image-formats' ),
-			strtoupper( str_replace( 'image/', '', (string) $info['mime'] ) ),
-			strtoupper( str_replace( 'image/', '', (string) $info['to'] ) ),
-			$saved >= 0 ? sprintf( /* translators: %s: formatted size */ __( '%s smaller', 'thisismyurl-image-formats' ), size_format( $saved ) ) : sprintf( /* translators: %s: formatted size */ __( '%s larger', 'thisismyurl-image-formats' ), size_format( abs( $saved ) ) )
-		);
+		$info = get_post_meta( $post->ID, Converter::META_ORIGINAL, true );
+
+		if ( is_array( $info ) ) {
+			$saved = (int) get_post_meta( $post->ID, Converter::META_SAVINGS, true );
+			$text  = sprintf(
+				/* translators: 1: old picture type, 2: new picture type */
+				__( 'This picture was changed from a %1$s file to a %2$s file.', 'thisismyurl-image-formats' ),
+				strtoupper( str_replace( 'image/', '', (string) $info['mime'] ) ),
+				strtoupper( str_replace( 'image/', '', (string) $info['to'] ) )
+			);
+			$size = $saved >= 0
+				? sprintf( /* translators: %s: amount of space, for example "3 MB" */ __( 'It now takes up %s less space.', 'thisismyurl-image-formats' ), size_format( $saved ) )
+				: sprintf( /* translators: %s: amount of space, for example "3 MB" */ __( 'It now takes up %s more space.', 'thisismyurl-image-formats' ), size_format( abs( $saved ) ) );
+			$html = '<p>' . esc_html( $text . ' ' . $size ) . '</p>';
+			if ( 0 === strpos( (string) $info['backup'], 'local:' ) ) {
+				$html .= '<p>' . esc_html__( 'Your original is saved safely. You can put it back whenever you like. Your title, caption and description will not change.', 'thisismyurl-image-formats' ) . '</p>';
+				$html .= '<p><a class="button" href="' . esc_url( Actions::url( Actions::RESTORE, $post->ID ) ) . '">' . esc_html__( 'Put the original back', 'thisismyurl-image-formats' ) . '</a></p>';
+			} else {
+				$html .= '<p>' . esc_html__( 'No copy of the original was kept, so it cannot be put back.', 'thisismyurl-image-formats' ) . '</p>';
+			}
+		} else {
+			$mime   = (string) get_post_mime_type( $post->ID );
+			$target = in_array( $mime, array_keys( Capabilities::source_formats() ), true ) ? Policy::target_for( $mime, 'manual' ) : '';
+			if ( '' === $target ) {
+				return $fields;
+			}
+			$nonweb = in_array( $mime, Policy::NON_WEB, true );
+			$html   = '<p>' . esc_html( $nonweb ? __( 'Web browsers often cannot show this kind of picture. You can change it into a kind that works on every website.', 'thisismyurl-image-formats' ) : __( 'You can make this picture take up less space, so your website loads faster.', 'thisismyurl-image-formats' ) ) . '</p>';
+			$html  .= '<p>' . esc_html__( 'A safe copy of your original is saved first, and you can put it back any time. Nothing happens until you press the button.', 'thisismyurl-image-formats' ) . '</p>';
+			$html  .= '<p><a class="button button-primary" href="' . esc_url( Actions::url( Actions::CONVERT, $post->ID ) ) . '">' . esc_html( $nonweb ? __( 'Fix this picture', 'thisismyurl-image-formats' ) : __( 'Make this picture smaller', 'thisismyurl-image-formats' ) ) . '</a></p>';
+		}
+
 		$fields['timu_formats'] = array(
-			'label' => __( 'Image Formats', 'thisismyurl-image-formats' ),
+			'label' => __( 'Picture type', 'thisismyurl-image-formats' ),
 			'input' => 'html',
-			'html'  => '<p>' . esc_html( $text ) . '</p>',
+			'html'  => $html,
 		);
 		return $fields;
 	}

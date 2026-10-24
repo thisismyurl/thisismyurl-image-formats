@@ -80,16 +80,16 @@ class Converter {
 	public static function convert_file( $path, $source_mime, $target_mime ) {
 		$ext = Capabilities::extension( $target_mime );
 		if ( '' === $ext ) {
-			return new WP_Error( 'timu_formats_target', __( 'That target format is not supported.', 'thisismyurl-image-formats' ) );
+			return new WP_Error( 'timu_formats_target', __( 'This website cannot make that kind of picture.', 'thisismyurl-image-formats' ) );
 		}
 		if ( ! file_exists( $path ) || ! is_readable( $path ) ) {
-			return new WP_Error( 'timu_formats_missing', __( 'The source file is missing or unreadable.', 'thisismyurl-image-formats' ) );
+			return new WP_Error( 'timu_formats_missing', __( 'The picture file could not be found, so nothing was changed.', 'thisismyurl-image-formats' ) );
 		}
 
 		// The target MIME type is passed so GD, which picks its editor from the file's own type, still writes the format asked for.
 		$editor = wp_get_image_editor( $path, array( 'mime_type' => $target_mime ) );
 		if ( is_wp_error( $editor ) ) {
-			return new WP_Error( 'timu_formats_read', __( 'This server cannot read that image.', 'thisismyurl-image-formats' ), $editor->get_error_message() );
+			return new WP_Error( 'timu_formats_read', __( 'This website could not open that picture, so nothing was changed.', 'thisismyurl-image-formats' ), $editor->get_error_message() );
 		}
 
 		$size = $editor->get_size();
@@ -104,7 +104,7 @@ class Converter {
 
 		$saved = $editor->save( $dest, $target_mime );
 		if ( is_wp_error( $saved ) ) {
-			return new WP_Error( 'timu_formats_write', __( 'This server could not write that format.', 'thisismyurl-image-formats' ), $saved->get_error_message() );
+			return new WP_Error( 'timu_formats_write', __( 'This website could not make the new picture, so nothing was changed. Your picture is safe.', 'thisismyurl-image-formats' ), $saved->get_error_message() );
 		}
 		$out = isset( $saved['path'] ) ? $saved['path'] : $dest;
 
@@ -114,7 +114,7 @@ class Converter {
 			if ( file_exists( $out ) ) {
 				wp_delete_file( $out );
 			}
-			return new WP_Error( 'timu_formats_verify', __( 'The converted file did not check out, so the original was kept.', 'thisismyurl-image-formats' ) );
+			return new WP_Error( 'timu_formats_verify', __( 'The new picture did not turn out right, so your original was kept. Nothing was changed.', 'thisismyurl-image-formats' ) );
 		}
 
 		return array(
@@ -140,7 +140,7 @@ class Converter {
 		$mime          = get_post_mime_type( $attachment_id );
 		$path          = get_attached_file( $attachment_id );
 		if ( ! $mime || ! $path || ! wp_attachment_is_image( $attachment_id ) ) {
-			return new WP_Error( 'timu_formats_not_image', __( 'That is not an image in the Media Library.', 'thisismyurl-image-formats' ) );
+			return new WP_Error( 'timu_formats_not_image', __( 'That is not a picture in your Media Library.', 'thisismyurl-image-formats' ) );
 		}
 		if ( get_post_meta( $attachment_id, self::META_ORIGINAL, true ) ) {
 			return array( 'status' => 'skipped', 'reason' => 'already converted', 'from' => $mime, 'to' => $mime, 'saved' => 0 );
@@ -154,7 +154,7 @@ class Converter {
 			return array( 'status' => 'skipped', 'reason' => 'no conversion needed', 'from' => $mime, 'to' => $mime, 'saved' => 0 );
 		}
 		if ( ! Capabilities::can_write( $target ) ) {
-			return new WP_Error( 'timu_formats_unsupported', __( 'This server cannot write that format.', 'thisismyurl-image-formats' ) );
+			return new WP_Error( 'timu_formats_unsupported', __( 'This website cannot make that kind of picture.', 'thisismyurl-image-formats' ) );
 		}
 		$old_size = file_exists( $path ) ? (int) filesize( $path ) : 0;
 		if ( $dry_run ) {
@@ -163,7 +163,7 @@ class Converter {
 
 		$lock = 'timu_formats_lock_' . $attachment_id;
 		if ( get_transient( $lock ) ) {
-			return new WP_Error( 'timu_formats_locked', __( 'That image is being converted right now.', 'thisismyurl-image-formats' ) );
+			return new WP_Error( 'timu_formats_locked', __( 'This picture is being changed right now. Please wait a minute and try again.', 'thisismyurl-image-formats' ) );
 		}
 		set_transient( $lock, 1, 5 * MINUTE_IN_SECONDS );
 
@@ -209,7 +209,7 @@ class Converter {
 			$kept = Backup::store_local( $path, $attachment_id );
 			if ( false === $kept ) {
 				wp_delete_file( $new['path'] );
-				return new WP_Error( 'timu_formats_backup', __( 'The original could not be backed up, so nothing was changed.', 'thisismyurl-image-formats' ) );
+				return new WP_Error( 'timu_formats_backup', __( 'A safe copy of your original could not be made, so nothing was changed.', 'thisismyurl-image-formats' ) );
 			}
 			$stored = 'local:' . $kept;
 		}
@@ -222,7 +222,7 @@ class Converter {
 			$kept_orig = Backup::store_local( $orig_path, $attachment_id );
 			if ( false === $kept_orig ) {
 				wp_delete_file( $new['path'] );
-				return new WP_Error( 'timu_formats_backup', __( 'The full-size original could not be backed up, so nothing was changed.', 'thisismyurl-image-formats' ) );
+				return new WP_Error( 'timu_formats_backup', __( 'A safe copy of the large original could not be made, so nothing was changed.', 'thisismyurl-image-formats' ) );
 			}
 			$orig_stored = 'local:' . $kept_orig;
 		}
@@ -322,14 +322,14 @@ class Converter {
 		$attachment_id = (int) $attachment_id;
 		$info          = get_post_meta( $attachment_id, self::META_ORIGINAL, true );
 		if ( ! is_array( $info ) ) {
-			return new WP_Error( 'timu_formats_nothing', __( 'That image has not been converted by this plugin.', 'thisismyurl-image-formats' ) );
+			return new WP_Error( 'timu_formats_nothing', __( 'This picture has not been changed by this tool.', 'thisismyurl-image-formats' ) );
 		}
 		if ( 0 !== strpos( (string) $info['backup'], 'local:' ) ) {
-			return new WP_Error( 'timu_formats_no_backup', __( 'No original was kept for that image.', 'thisismyurl-image-formats' ) );
+			return new WP_Error( 'timu_formats_no_backup', __( 'No copy of the original was kept for this picture.', 'thisismyurl-image-formats' ) );
 		}
 		$source = Backup::resolve( substr( $info['backup'], 6 ) );
 		if ( '' === $source ) {
-			return new WP_Error( 'timu_formats_backup_missing', __( 'The backed-up original could not be found.', 'thisismyurl-image-formats' ) );
+			return new WP_Error( 'timu_formats_backup_missing', __( 'The saved copy of the original could not be found.', 'thisismyurl-image-formats' ) );
 		}
 
 		$current = get_attached_file( $attachment_id );
@@ -337,7 +337,7 @@ class Converter {
 		$name    = wp_unique_filename( $dir, wp_basename( $info['file'] ) );
 		$dest    = trailingslashit( $dir ) . $name;
 		if ( ! copy( $source, $dest ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy
-			return new WP_Error( 'timu_formats_restore_copy', __( 'The original could not be copied back.', 'thisismyurl-image-formats' ) );
+			return new WP_Error( 'timu_formats_restore_copy', __( 'The original could not be put back, so nothing was changed.', 'thisismyurl-image-formats' ) );
 		}
 
 		wp_delete_attachment_files( $attachment_id, self::meta_for_delete( $attachment_id ), array(), $current );

@@ -8,56 +8,60 @@ Stable tag: 0.6297.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Converts images to formats browsers can show and sites can afford: BMP, TIFF and HEIC to web formats, and optionally JPEG and PNG to WebP or AVIF. Originals are kept so every conversion can be undone.
+Changes pictures that websites cannot show, or that take up too much space, into pictures that work well. A safe copy of every original is kept, so you can always put it back.
 
 == Description ==
 
-This is a pre-release. It is under active development and is not yet in the WordPress.org directory.
+This plugin is still being built. You are welcome to try it, and it is not on the WordPress.org list yet.
 
-WordPress accepts BMP, TIFF and HEIC uploads but leaves them exactly as they arrive, and browsers cannot show TIFF or HEIC at all. It does not make WebP or AVIF versions of your JPEG and PNG files. This plugin does those jobs with the image library WordPress already uses (GD or Imagick). Nothing is installed on your server and nothing leaves your site.
+Some picture files are too big for a website. Others, like BMP, TIFF and the HEIC pictures from an iPhone, cannot be shown in a web browser at all. This plugin changes those pictures into kinds that work well on a website.
 
-What it does now:
+**Is it safe?** Yes. Before any picture is changed, a copy of the original is saved in a safe folder. You can put the original back whenever you like. Nothing is sent over the internet. Nothing is changed until you add a picture or press a button.
 
-* Converts BMP, TIFF, HEIC and HEIF uploads as they arrive: BMP and TIFF to PNG (or WebP), HEIC and HEIF to AVIF, WebP or JPEG, whichever your server can write.
-* Optionally converts JPEG and PNG uploads to WebP or AVIF. This is off by default. A converted file that would be larger than the original is discarded.
-* Converts what is already in your Media Library from the command line, with a dry run.
-* Keeps the original so a conversion can be undone, in a folder inside your uploads folder.
-* Shows on each converted image what it was and how much space was saved.
+What it does:
 
-What it does not do yet: update references to a converted image inside your posts and pages, handle SVG, or convert in bulk from the dashboard. These are the next phases.
+* When you add a BMP, TIFF or iPhone (HEIC) picture, it changes it into a picture that works on a website.
+* On any picture's page in your Media Library, there is a button to change that picture, and a button to put the original back.
+* If you turn it on, it can also make new JPEG and PNG pictures smaller. This is off to begin with. If the new file would not be smaller, your picture is left exactly as it was.
+* It shows how much space each change saved.
+
+You do not need to change any settings. They are already chosen for you.
+
+Coming later: fixing the links to a changed picture inside your pages and posts, changing many pictures at once from the dashboard, and safe handling of SVG pictures.
 
 == Installation ==
 
-1. Download the zip, then use Plugins > Add New Plugin > Upload Plugin.
-2. Activate it, then open Settings > Image Formats.
+1. Download the zip file. In your dashboard, go to Plugins, then Add New Plugin, then Upload Plugin.
+2. Choose the zip file and press Install Now, then Activate.
+3. That is all. If you want to look at the settings, go to Settings, then Image Formats.
 
 == Frequently Asked Questions ==
 
-= Does it delete my originals? =
+= Will I lose my original pictures? =
 
-Not by default. The original goes to a backup folder inside your uploads folder. You can choose to keep none, in which case the original is deleted after a successful conversion.
+No. A copy is saved in a safe folder first, and you can put it back with one button on the picture's page. The only way to lose an original is to turn the "Keep a copy" setting to "No", which we do not suggest.
 
-= What if my server cannot read or write a format? =
+= Will my picture's title, caption and description change? =
 
-The upload goes through unchanged. The settings screen shows what your server can write, and the plugin only offers formats it can actually produce.
+No. Those stay exactly as they are. Camera details are kept too.
 
-= What happens to alt text, titles and captions? =
+= What if my website cannot change a picture? =
 
-They stay exactly as they are. A conversion changes the file, not the attachment, so the ID, title, caption, description and alt text are untouched. Camera and exposure details are carried over, and WordPress makes a fresh set of thumbnails from the new file for every size your theme and plugins register.
+Then nothing happens. The picture is added as it was, and a message tells you in plain words.
 
-= Does it resize images? =
+= Does it make my pictures a different size? =
 
-No. It changes the format, not the dimensions. WordPress still scales very large images down to its own size limit (2560 pixels by default) after the conversion, and keeps the full-size file; this plugin backs that file up with the original and puts it back on restore.
+No. It changes the kind of picture, not how big it looks on the screen. WordPress still shrinks very large pictures by itself, as it always has, and this plugin saves the large original too.
 
-= Is the new file always smaller? =
+= Will the new picture always be smaller? =
 
-For JPEG and PNG, yes: a converted file that would be the same size or larger is thrown away and the original kept. BMP, TIFF and HEIC are converted so browsers can show them, and they almost always shrink, but that is not what decides it.
+For JPEG and PNG, yes. If the new file would not be smaller, your picture is left alone. BMP, TIFF and HEIC pictures are changed so people can see them, and they almost always get much smaller too.
 
-= Which command-line commands are there? =
+= I know how to use the command line. Is there one? =
 
-`wp image-formats status`, `wp image-formats convert <id>...` or `--all` (with `--dry-run`), and `wp image-formats restore <id>...`.
+Yes: `wp image-formats status`, `wp image-formats convert <id>` (or `--all`, with `--dry-run` to look first) and `wp image-formats restore <id>`.
 
 == Changelog ==
 
 = 0.6297.1 =
-* First development build: capabilities check, conversion policy, verified converter, upload hook, local backup, restore, settings screen and WP-CLI.
+* First test version.

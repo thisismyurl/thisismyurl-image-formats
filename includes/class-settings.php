@@ -116,7 +116,8 @@ class Settings {
 	}
 
 	/**
-	 * Settings screen.
+	 * Settings screen. Written for someone who does not use computers much: it says what the tool does, says it is safe before anything
+	 * else, and has every setting already chosen.
 	 *
 	 * @return void
 	 */
@@ -125,78 +126,118 @@ class Settings {
 			return;
 		}
 		$s       = self::get();
-		$targets = Capabilities::targets();
-		$name    = self::OPTION;
+		$targets = array_keys( array_filter( Capabilities::targets() ) );
+		$names   = array_map(
+			static function ( $mime ) {
+				return strtoupper( str_replace( 'image/', '', $mime ) );
+			},
+			$targets
+		);
+		$name = self::OPTION;
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Image Formats', 'thisismyurl-image-formats' ); ?></h1>
-			<p>
-				<?php
-				printf(
-					/* translators: 1: image library name (GD or Imagick), 2: list of formats */
-					esc_html__( 'Your server uses %1$s and can write: %2$s.', 'thisismyurl-image-formats' ),
-					esc_html( Capabilities::library() ),
-					esc_html( implode( ', ', array_map( static function ( $m ) { return strtoupper( str_replace( 'image/', '', $m ) ); }, array_keys( array_filter( $targets ) ) ) ) ?: __( 'nothing', 'thisismyurl-image-formats' ) )
-				);
-				?>
+
+			<p style="max-width:44em;font-size:15px">
+				<?php esc_html_e( 'Some picture files are too big for a website, or cannot be shown in a web browser at all. This tool changes them into pictures that work well on websites.', 'thisismyurl-image-formats' ); ?>
 			</p>
+
+			<div class="notice notice-info inline" style="max-width:44em;padding:4px 14px">
+				<p><strong><?php esc_html_e( 'You do not need to change anything on this page.', 'thisismyurl-image-formats' ); ?></strong>
+				<?php esc_html_e( 'Everything is already set up for you.', 'thisismyurl-image-formats' ); ?></p>
+				<p><?php esc_html_e( 'Before any picture is changed, a copy of the original is saved in a safe place. You can put the original back at any time, from the picture\'s own page in your Media Library.', 'thisismyurl-image-formats' ); ?></p>
+			</div>
+
 			<form method="post" action="options.php">
 				<?php settings_fields( self::GROUP ); ?>
+
+				<h2><?php esc_html_e( 'Pictures that web browsers cannot show', 'thisismyurl-image-formats' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th scope="row"><?php esc_html_e( 'Formats browsers cannot show', 'thisismyurl-image-formats' ); ?></th>
+						<th scope="row"><?php esc_html_e( 'Fix them when I add them', 'thisismyurl-image-formats' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="<?php echo esc_attr( $name ); ?>[convert_nonweb]" value="1" <?php checked( 1, (int) $s['convert_nonweb'] ); ?>> <?php esc_html_e( 'Convert BMP, TIFF and HEIC uploads', 'thisismyurl-image-formats' ); ?></label>
+							<label><input type="checkbox" name="<?php echo esc_attr( $name ); ?>[convert_nonweb]" value="1" <?php checked( 1, (int) $s['convert_nonweb'] ); ?>> <?php esc_html_e( 'Yes, fix BMP, TIFF and iPhone (HEIC) pictures', 'thisismyurl-image-formats' ); ?></label>
+							<p class="description"><?php esc_html_e( 'These kinds of picture often do not show on a website. This is already turned on for you.', 'thisismyurl-image-formats' ); ?></p>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row"><label for="timu-graphic"><?php esc_html_e( 'BMP and TIFF become', 'thisismyurl-image-formats' ); ?></label></th>
+						<th scope="row"><label for="timu-graphic"><?php esc_html_e( 'BMP and TIFF pictures become', 'thisismyurl-image-formats' ); ?></label></th>
 						<td>
 							<select id="timu-graphic" name="<?php echo esc_attr( $name ); ?>[graphic_format]">
-								<option value="png" <?php selected( 'png', $s['graphic_format'] ); ?>>PNG (lossless)</option>
-								<option value="webp" <?php selected( 'webp', $s['graphic_format'] ); ?>>WebP (maximum quality)</option>
+								<option value="png" <?php selected( 'png', $s['graphic_format'] ); ?>><?php esc_html_e( 'PNG (recommended). Keeps every detail.', 'thisismyurl-image-formats' ); ?></option>
+								<option value="webp" <?php selected( 'webp', $s['graphic_format'] ); ?>><?php esc_html_e( 'WebP. A smaller file that looks the same to most people.', 'thisismyurl-image-formats' ); ?></option>
 							</select>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row"><label for="timu-photo"><?php esc_html_e( 'HEIC and HEIF become', 'thisismyurl-image-formats' ); ?></label></th>
+						<th scope="row"><label for="timu-photo"><?php esc_html_e( 'iPhone (HEIC) pictures become', 'thisismyurl-image-formats' ); ?></label></th>
 						<td>
 							<select id="timu-photo" name="<?php echo esc_attr( $name ); ?>[photo_format]">
-								<option value="auto" <?php selected( 'auto', $s['photo_format'] ); ?>><?php esc_html_e( 'Best available (AVIF, then WebP, then JPEG)', 'thisismyurl-image-formats' ); ?></option>
-								<option value="avif" <?php selected( 'avif', $s['photo_format'] ); ?>>AVIF</option>
-								<option value="webp" <?php selected( 'webp', $s['photo_format'] ); ?>>WebP</option>
-								<option value="jpeg" <?php selected( 'jpeg', $s['photo_format'] ); ?>>JPEG</option>
-							</select>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><?php esc_html_e( 'JPEG and PNG', 'thisismyurl-image-formats' ); ?></th>
-						<td>
-							<label><input type="checkbox" name="<?php echo esc_attr( $name ); ?>[convert_jpeg_png]" value="1" <?php checked( 1, (int) $s['convert_jpeg_png'] ); ?>> <?php esc_html_e( 'Also convert JPEG and PNG uploads to a modern format', 'thisismyurl-image-formats' ); ?></label>
-							<p class="description"><?php esc_html_e( 'Off by default. WordPress keeps JPEG and PNG as they are, and they work everywhere.', 'thisismyurl-image-formats' ); ?></p>
-							<select name="<?php echo esc_attr( $name ); ?>[web_format]">
-								<option value="auto" <?php selected( 'auto', $s['web_format'] ); ?>><?php esc_html_e( 'Best available (AVIF, then WebP)', 'thisismyurl-image-formats' ); ?></option>
-								<option value="avif" <?php selected( 'avif', $s['web_format'] ); ?>>AVIF</option>
-								<option value="webp" <?php selected( 'webp', $s['web_format'] ); ?>>WebP</option>
-							</select>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="timu-quality"><?php esc_html_e( 'Quality for lossy formats', 'thisismyurl-image-formats' ); ?></label></th>
-						<td><input id="timu-quality" type="number" min="40" max="100" name="<?php echo esc_attr( $name ); ?>[quality]" value="<?php echo esc_attr( (string) (int) $s['quality'] ); ?>" class="small-text"></td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="timu-backup"><?php esc_html_e( 'Keep the original', 'thisismyurl-image-formats' ); ?></label></th>
-						<td>
-							<select id="timu-backup" name="<?php echo esc_attr( $name ); ?>[backup]">
-								<option value="local" <?php selected( 'local', $s['backup'] ); ?>><?php esc_html_e( 'In a backup folder inside uploads (recommended)', 'thisismyurl-image-formats' ); ?></option>
-								<option value="none" <?php selected( 'none', $s['backup'] ); ?>><?php esc_html_e( 'Do not keep it (the original is deleted)', 'thisismyurl-image-formats' ); ?></option>
+								<option value="auto" <?php selected( 'auto', $s['photo_format'] ); ?>><?php esc_html_e( 'The best kind your website can use (recommended)', 'thisismyurl-image-formats' ); ?></option>
+								<option value="avif" <?php selected( 'avif', $s['photo_format'] ); ?>><?php esc_html_e( 'AVIF. Very small files.', 'thisismyurl-image-formats' ); ?></option>
+								<option value="webp" <?php selected( 'webp', $s['photo_format'] ); ?>><?php esc_html_e( 'WebP. Small files.', 'thisismyurl-image-formats' ); ?></option>
+								<option value="jpeg" <?php selected( 'jpeg', $s['photo_format'] ); ?>><?php esc_html_e( 'JPEG. Works almost everywhere.', 'thisismyurl-image-formats' ); ?></option>
 							</select>
 						</td>
 					</tr>
 				</table>
-				<?php submit_button(); ?>
+
+				<h2><?php esc_html_e( 'Make other pictures smaller (optional)', 'thisismyurl-image-formats' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'JPEG and PNG pictures', 'thisismyurl-image-formats' ); ?></th>
+						<td>
+							<label><input type="checkbox" name="<?php echo esc_attr( $name ); ?>[convert_jpeg_png]" value="1" <?php checked( 1, (int) $s['convert_jpeg_png'] ); ?>> <?php esc_html_e( 'Also make new JPEG and PNG pictures smaller', 'thisismyurl-image-formats' ); ?></label>
+							<p class="description"><?php esc_html_e( 'This is turned off. JPEG and PNG pictures already work everywhere, so there is no need. If you turn it on and the new file would not be smaller, your original picture is kept exactly as it was.', 'thisismyurl-image-formats' ); ?></p>
+							<p>
+								<label for="timu-web"><?php esc_html_e( 'Kind of picture to use:', 'thisismyurl-image-formats' ); ?></label>
+								<select id="timu-web" name="<?php echo esc_attr( $name ); ?>[web_format]">
+									<option value="auto" <?php selected( 'auto', $s['web_format'] ); ?>><?php esc_html_e( 'The best kind your website can use (recommended)', 'thisismyurl-image-formats' ); ?></option>
+									<option value="avif" <?php selected( 'avif', $s['web_format'] ); ?>>AVIF</option>
+									<option value="webp" <?php selected( 'webp', $s['web_format'] ); ?>>WebP</option>
+								</select>
+							</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="timu-quality"><?php esc_html_e( 'Picture quality', 'thisismyurl-image-formats' ); ?></label></th>
+						<td>
+							<input id="timu-quality" type="number" min="40" max="100" name="<?php echo esc_attr( $name ); ?>[quality]" value="<?php echo esc_attr( (string) (int) $s['quality'] ); ?>" class="small-text">
+							<p class="description"><?php esc_html_e( 'A number from 40 to 100. 82 is a good choice. A higher number looks a little better and makes a bigger file.', 'thisismyurl-image-formats' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'Keeping your originals safe', 'thisismyurl-image-formats' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="timu-backup"><?php esc_html_e( 'Keep a copy of the original', 'thisismyurl-image-formats' ); ?></label></th>
+						<td>
+							<select id="timu-backup" name="<?php echo esc_attr( $name ); ?>[backup]">
+								<option value="local" <?php selected( 'local', $s['backup'] ); ?>><?php esc_html_e( 'Yes, keep a copy in a safe folder (recommended)', 'thisismyurl-image-formats' ); ?></option>
+								<option value="none" <?php selected( 'none', $s['backup'] ); ?>><?php esc_html_e( 'No, delete the original after the change', 'thisismyurl-image-formats' ); ?></option>
+							</select>
+							<p class="description"><?php esc_html_e( 'If you choose "No", you will not be able to put an original back. We suggest leaving this on "Yes".', 'thisismyurl-image-formats' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+				<?php submit_button( __( 'Save changes', 'thisismyurl-image-formats' ) ); ?>
 			</form>
+
+			<p class="description" style="max-width:44em">
+				<?php
+				echo esc_html(
+					$names
+						? sprintf(
+							/* translators: %s: list of picture types, for example "AVIF, WEBP, PNG, JPEG" */
+							__( 'Your website can make these kinds of picture: %s.', 'thisismyurl-image-formats' ),
+							implode( ', ', $names )
+						)
+						: __( 'Your website cannot make new pictures right now, so nothing will be changed.', 'thisismyurl-image-formats' )
+				);
+				?>
+			</p>
 		</div>
 		<?php
 	}
