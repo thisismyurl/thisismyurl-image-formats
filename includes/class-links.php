@@ -77,8 +77,8 @@ class Links {
 		}
 		// Look at the addresses the content really contains, so the work depends on the page and not on how many pictures were changed. Each
 		// address is replaced as a whole, so a longer name that merely starts with an old one is never half-replaced.
-		return (string) preg_replace_callback(
-			'#(?:https?:)?//[^\s"\'<>()\\\\]+#',
+		$swapped = preg_replace_callback(
+			'#(?:https?:)?//[^\s"\'<>()\\\\?\#&,;]+#',
 			static function ( $m ) use ( $map ) {
 				$candidate = $m[0];
 				$key       = preg_replace( '#^(?:https?:)?//#', 'https://', $candidate );
@@ -91,6 +91,7 @@ class Links {
 			},
 			$content
 		);
+		return is_string( $swapped ) ? $swapped : $content;
 	}
 
 	/**

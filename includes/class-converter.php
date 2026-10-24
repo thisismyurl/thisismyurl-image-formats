@@ -263,25 +263,35 @@ class Converter {
 				}
 			}
 		}
-		// Two pictures in the Library using one file (some translation plugins do this): changing one would break the other.
-		$relative = (string) get_post_meta( $attachment_id, '_wp_attached_file', true );
-		if ( '' !== $relative ) {
-			$others = get_posts(
-				array(
-					'post_type'      => 'attachment',
-					'post_status'    => array( 'inherit', 'private', 'publish', 'trash' ),
-					'meta_key'       => '_wp_attached_file', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- a single, bounded lookup.
-					'meta_value'     => $relative, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
-					'fields'         => 'ids',
-					'posts_per_page' => 2,
-					'no_found_rows'  => true,
-				)
-			);
-			if ( array_diff( array_map( 'intval', $others ), array( $attachment_id ) ) ) {
-				return 'shared file';
-			}
+		if ( self::shared_file( $attachment_id ) ) {
+			return 'shared file';
 		}
 		return '';
+	}
+
+	/**
+	 * Does another picture in the Library use the very same file? (Some translation plugins do this.) Changing one would break the other.
+	 *
+	 * @param int $attachment_id Attachment ID.
+	 * @return bool
+	 */
+	private static function shared_file( $attachment_id ) {
+		$relative = (string) get_post_meta( $attachment_id, '_wp_attached_file', true );
+		if ( '' === $relative ) {
+			return false;
+		}
+		$others = get_posts(
+			array(
+				'post_type'      => 'attachment',
+				'post_status'    => array( 'inherit', 'private', 'publish', 'trash' ),
+				'meta_key'       => '_wp_attached_file', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- a single, bounded lookup.
+				'meta_value'     => $relative, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
+				'fields'         => 'ids',
+				'posts_per_page' => 2,
+				'no_found_rows'  => true,
+			)
+		);
+		return (bool) array_diff( array_map( 'intval', $others ), array( (int) $attachment_id ) );
 	}
 
 	/**
@@ -311,22 +321,25 @@ class Converter {
 		}
 		$animated = false;
 		if ( "\x89PNG\r\n\x1a\n" === fread( $h, 8 ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
-			// Walk the chunks: an animation control chunk comes before the first image data.
-			for ( $i = 0; $i < 200; $i++ ) {
+			// Walk the chunks: an animation control chunk comes before the first image data. If there are too many to walk, play it safe.
+			$animated = true;
+			for ( $i = 0; $i < 400; $i++ ) {
 				$head = fread( $h, 8 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
 				if ( 8 !== strlen( (string) $head ) ) {
+					$animated = false;
 					break;
 				}
 				$len  = (int) unpack( 'N', substr( $head, 0, 4 ) )[1];
 				$type = substr( $head, 4, 4 );
 				if ( 'acTL' === $type ) {
-					$animated = true;
 					break;
 				}
 				if ( 'IDAT' === $type || 'IEND' === $type ) {
+					$animated = false;
 					break;
 				}
 				if ( 0 !== fseek( $h, $len + 4, SEEK_CUR ) ) {
+					$animated = false;
 					break;
 				}
 			}
@@ -346,10 +359,14 @@ class Converter {
 		if ( ! is_array( $info ) ) {
 			return;
 		}
+		global $wpdb;
 		foreach ( array( 'backup', 'backup_original' ) as $key ) {
 			if ( ! empty( $info[ $key ] ) && 0 === strpos( (string) $info[ $key ], 'local:' ) ) {
 				$file = Backup::resolve( substr( (string) $info[ $key ], 6 ) );
-				if ( '' !== $file ) {
+				// Another picture's note (a copy made by a translation plugin) may point at the same saved original. Then it stays.
+				$like   = '%' . $wpdb->esc_like( substr( (string) $info[ $key ], 6 ) ) . '%';
+				$shared = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s AND post_id <> %d AND meta_value LIKE %s", self::META_ORIGINAL, (int) $attachment_id, $like ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+				if ( '' !== $file && 0 === $shared ) {
 					wp_delete_file( $file );
 					self::tidy_backup_folder( dirname( $file ) );
 				}
@@ -438,7 +455,7 @@ class Converter {
 			'original_image'  => $orig_name,
 			'backup_original' => $orig_stored,
 		);
-		update_post_meta( $attachment_id, self::META_ORIGINAL, array_merge( $record, array( 'state' => 'pending', 'new_file' => wp_basename( $new['path'] ) ) ) );
+		update_post_meta( $attachment_id, self::META_ORIGINAL, array_merge( $record, array( 'state' => 'pending', 'new_file' => wp_basename( $new['path'] ), 'new_size' => (int) $new['size'] ) ) );
 
 		// Carry the camera, exposure and date details over: the converted file may not hold them in a form WordPress can read.
 		$carry = isset( $source_meta['image_meta'] ) && is_array( $source_meta['image_meta'] ) ? $source_meta['image_meta'] : array();
@@ -588,6 +605,9 @@ class Converter {
 		$try  = wp_unique_filename( $dir, $base );
 		$i    = 1;
 		while ( in_array( wp_normalize_path( trailingslashit( $dir ) . $try ), $own, true ) ) {
+			if ( $i > 1000 ) {
+				return ''; // A site filter keeps giving the same name. Give up rather than loop.
+			}
 			$try = wp_unique_filename( $dir, $name . '-' . $i . ( '' !== $ext ? '.' . $ext : '' ) );
 			++$i;
 		}
@@ -637,6 +657,9 @@ class Converter {
 		if ( '' === $source ) {
 			return new WP_Error( 'timu_formats_backup_missing', __( 'The saved copy of the original could not be found.', 'thisismyurl-image-formats' ) );
 		}
+		if ( self::shared_file( $attachment_id ) ) {
+			return new WP_Error( 'timu_formats_shared', __( 'Another picture in your Media Library uses the same file, so this one is left exactly as it is.', 'thisismyurl-image-formats' ) );
+		}
 		if ( ! self::take_lock( $attachment_id ) ) {
 			return new WP_Error( 'timu_formats_locked', __( 'This picture is being changed right now. Please wait a minute and try again.', 'thisismyurl-image-formats' ) );
 		}
@@ -673,10 +696,8 @@ class Converter {
 		$orphan  = ! empty( $info['new_file'] ) ? trailingslashit( $dir ) . wp_basename( (string) $info['new_file'] ) : '';
 
 		// A change that stopped before it removed anything: the original is still in place, so only the half-made new file has to go.
-		if ( isset( $info['state'] ) && 'pending' === $info['state'] && wp_basename( $current ) === $base && is_file( $current ) && filesize( $current ) === filesize( $source ) ) {
-			if ( '' !== $orphan && is_file( $orphan ) && wp_normalize_path( $orphan ) !== wp_normalize_path( $current ) ) {
-				wp_delete_file( $orphan );
-			}
+		if ( isset( $info['state'] ) && 'pending' === $info['state'] && self::nothing_removed( $attachment_id, $info, $current, $base, $dir, $source ) ) {
+			self::drop_orphan( $info, $orphan, $current );
 			wp_delete_file( $source );
 			self::tidy_backup_folder( dirname( $source ) );
 			if ( ! empty( $info['backup_original'] ) ) {
@@ -692,6 +713,9 @@ class Converter {
 
 		$own  = self::own_files( $attachment_id, $current );
 		$dest = self::exact_or_unique( $dir, $base, $own );
+		if ( '' === $dest ) {
+			return new WP_Error( 'timu_formats_restore_name', __( 'A free file name could not be found, so nothing was changed.', 'thisismyurl-image-formats' ) );
+		}
 
 		// Put the large original back too, when one was kept.
 		$orig_src  = '';
@@ -702,6 +726,9 @@ class Converter {
 				return new WP_Error( 'timu_formats_backup_missing', __( 'The saved copy of the original could not be found.', 'thisismyurl-image-formats' ) );
 			}
 			$orig_dest = self::exact_or_unique( $dir, wp_basename( (string) $info['original_image'] ), $own );
+			if ( '' === $orig_dest ) {
+				return new WP_Error( 'timu_formats_restore_name', __( 'A free file name could not be found, so nothing was changed.', 'thisismyurl-image-formats' ) );
+			}
 		}
 		$copied = array();
 		foreach ( array( array( $source, $dest ), array( $orig_src, $orig_dest ) ) as $pair ) {
@@ -745,9 +772,7 @@ class Converter {
 		if ( ! is_file( $dest ) || filesize( $dest ) !== filesize( $source ) || ( '' !== $orig_src && ( ! is_file( $orig_dest ) || filesize( $orig_dest ) !== filesize( $orig_src ) ) ) ) {
 			return new WP_Error( 'timu_formats_restore_verify', __( 'The original could not be checked after it was put back, so the saved copy was kept. Nothing was lost.', 'thisismyurl-image-formats' ) );
 		}
-		if ( '' !== $orphan && is_file( $orphan ) && wp_normalize_path( $orphan ) !== wp_normalize_path( $dest ) ) {
-			wp_delete_file( $orphan );
-		}
+		self::drop_orphan( $info, $orphan, $dest );
 		wp_delete_file( $source );
 		self::tidy_backup_folder( dirname( $source ) );
 		if ( '' !== $orig_src ) {
@@ -762,6 +787,72 @@ class Converter {
 
 		do_action( 'timu_formats_restored', $attachment_id );
 		return array( 'status' => 'restored', 'mime' => $info['mime'] );
+	}
+
+	/**
+	 * Has an interrupted change removed nothing yet? Core deletes a picture's sizes, then its large original, then the main file, so every
+	 * one of them has to still be there before "nothing was removed" is true.
+	 *
+	 * @param int    $attachment_id Attachment ID.
+	 * @param array  $info          The picture's note.
+	 * @param string $current       Absolute path of the main file.
+	 * @param string $base          Original file name.
+	 * @param string $dir           Folder.
+	 * @param string $source        Saved original.
+	 * @return bool
+	 */
+	private static function nothing_removed( $attachment_id, array $info, $current, $base, $dir, $source ) {
+		if ( wp_basename( $current ) !== $base || ! is_file( $current ) || filesize( $current ) !== filesize( $source ) ) {
+			return false;
+		}
+		if ( ! empty( $info['original_image'] ) ) {
+			$kept = ! empty( $info['backup_original'] ) ? Backup::resolve( substr( (string) $info['backup_original'], 6 ) ) : '';
+			$full = trailingslashit( $dir ) . wp_basename( (string) $info['original_image'] );
+			if ( '' === $kept || ! is_file( $full ) || filesize( $full ) !== filesize( $kept ) ) {
+				return false;
+			}
+		}
+		$meta = wp_get_attachment_metadata( $attachment_id );
+		foreach ( is_array( $meta ) && isset( $meta['sizes'] ) && is_array( $meta['sizes'] ) ? $meta['sizes'] : array() as $size ) {
+			if ( ! empty( $size['file'] ) && ! is_file( trailingslashit( $dir ) . $size['file'] ) ) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Delete the half-made new file of an interrupted change, but only if it still is that file: the right size, and not now some other
+	 * picture's file.
+	 *
+	 * @param array  $info   The picture's note.
+	 * @param string $orphan Absolute path of the half-made file.
+	 * @param string $keep   A path that must never be deleted (the file the picture now uses).
+	 * @return void
+	 */
+	private static function drop_orphan( array $info, $orphan, $keep ) {
+		if ( '' === $orphan || ! is_file( $orphan ) || wp_normalize_path( $orphan ) === wp_normalize_path( $keep ) ) {
+			return;
+		}
+		if ( empty( $info['new_size'] ) || filesize( $orphan ) !== (int) $info['new_size'] ) {
+			return;
+		}
+		$uploads  = wp_get_upload_dir();
+		$relative = ltrim( str_replace( trailingslashit( wp_normalize_path( $uploads['basedir'] ) ), '', wp_normalize_path( $orphan ) ), '/' );
+		$owners   = get_posts(
+			array(
+				'post_type'      => 'attachment',
+				'post_status'    => 'any',
+				'meta_key'       => '_wp_attached_file', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- a single, bounded lookup.
+				'meta_value'     => $relative, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
+				'fields'         => 'ids',
+				'posts_per_page' => 1,
+				'no_found_rows'  => true,
+			)
+		);
+		if ( ! $owners ) {
+			wp_delete_file( $orphan );
+		}
 	}
 
 	/**

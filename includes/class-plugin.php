@@ -146,7 +146,7 @@ class Plugin {
 			$mime   = $real ? (string) $real : (string) get_post_mime_type( $post->ID );
 			$target = in_array( $mime, array_keys( Capabilities::source_formats() ), true ) ? Policy::target_for( $mime, 'manual' ) : '';
 			if ( '' === $target ) {
-				echo '<p>' . esc_html__( 'This picture is already a good kind for a website. Nothing needs changing.', 'thisismyurl-image-formats' ) . '</p></div>';
+				echo '<p>' . esc_html( in_array( $mime, Policy::NON_WEB, true ) ? __( 'Your website cannot make a picture of the kind this one needs right now, so it is left as it is.', 'thisismyurl-image-formats' ) : __( 'This picture is already a good kind for a website. Nothing needs changing.', 'thisismyurl-image-formats' ) ) . '</p></div>';
 				return;
 			}
 			$why = Converter::refusal_reason( $post->ID );

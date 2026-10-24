@@ -53,15 +53,15 @@ Changing many pictures at once from the dashboard, and safe handling of SVG pict
 
 = Will I lose my original pictures? =
 
-No. A copy is saved in a safe folder first, and you can put it back with one button on the picture's page. The copy is only lost if you turn the "Keep a copy" setting to "No" before you change a picture (which we do not suggest) or delete the folder it is kept in. Turning the setting off later does not delete copies that are already saved. When it is off, the button says plainly that the original will be deleted.
+No. A copy is saved in a safe folder first, and you can put it back with one button on the picture's page. The copy is only lost if you turn the "Keep a copy" setting to "No" before you change a picture (which we do not suggest), delete the folder it is kept in, or delete the picture for good. Turning the setting off later does not delete copies that are already saved. When it is off, the button says plainly that the original will be deleted.
 
 = Where are my originals kept? =
 
-In a folder inside your uploads folder, called "timu-formats-backups" followed by a random ending. The folder is usually closed to visitors on Apache and IIS servers, and on other servers its random name is what keeps it private. Treat it like your pictures: a saved original, such as an iPhone picture, can still hold details like where it was taken. When you delete a picture for good, its saved original is deleted with it. If you delete this plugin from the Plugins screen, the folder is left in place on purpose, so your originals are not lost. You can delete it yourself when you are sure you do not need them.
+In a folder inside your uploads folder, called "timu-formats-backups" followed by a random ending. The folder is usually closed to visitors on Apache and IIS servers, and on other servers its random name is what keeps it private. Treat it like your pictures: a saved original, such as an iPhone picture, can still hold details like where it was taken. While this plugin is turned on, deleting a picture for good also deletes its saved original. If you delete this plugin from the Plugins screen, the folder is left in place on purpose, so your originals are not lost. You can delete it yourself when you are sure you do not need them.
 
 = What does putting the original back do? =
 
-It brings back the file you added, usually with its old file name. If another picture now uses that name, a new name is used and links are still pointed at it. Links made since the change are pointed back at the original too. Crops made after the change are not kept. For an iPhone (HEIC) picture, WordPress may also make its own JPEG copy for showing on the website; your original file is kept as well.
+It brings back the file you added, usually with its old file name. If another picture now uses that name, the restored picture gets a new name, and links to the old name keep showing the other picture. Links made since the change are pointed at the restored picture. Crops made after the change are not kept. For an iPhone (HEIC) picture, WordPress may also make its own JPEG copy for showing on the website; your original file is kept as well.
 
 = Will my picture's title, caption and description change? =
 
