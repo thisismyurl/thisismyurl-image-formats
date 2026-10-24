@@ -20,10 +20,10 @@ class Ui {
 	 * @return void
 	 */
 	public static function enqueue() {
-		if ( ! wp_style_is( 'timu-ui', 'registered' ) ) {
-			wp_register_style( 'timu-ui', plugins_url( 'assets/timu-ui.css', TIMU_FORMATS_FILE ), array(), TIMU_FORMATS_VERSION );
+		if ( ! wp_style_is( 'timu-formats-ui', 'registered' ) ) {
+			wp_register_style( 'timu-formats-ui', plugins_url( 'assets/timu-ui.css', TIMU_FORMATS_FILE ), array(), TIMU_FORMATS_VERSION );
 		}
-		wp_enqueue_style( 'timu-ui' );
+		wp_enqueue_style( 'timu-formats-ui' );
 	}
 
 	/**
@@ -60,7 +60,7 @@ class Ui {
 	 * @return void
 	 */
 	public static function footer( $trust_html ) {
-		echo '<p class="timu-ui-foot">' . $trust_html; // phpcs:ignore WordPress.Security.EscapeOutput -- built from escaped parts by the caller.
+		echo '<p class="timu-ui-foot">' . wp_kses( $trust_html, array( 'span' => array( 'class' => true, 'aria-hidden' => true ) ) );
 		echo '<span class="timu-ui-foot-links">';
 		if ( self::support_active() ) {
 			echo '<span class="timu-ui-switch"><a href="' . esc_url( admin_url( 'upload.php?page=timu-image-support' ) ) . '">' . esc_html__( 'Image Support', 'thisismyurl-image-formats' ) . '</a><a href="' . esc_url( admin_url( 'upload.php?page=' . Settings::PAGE ) ) . '" aria-current="page">' . esc_html__( 'Image Formats', 'thisismyurl-image-formats' ) . '</a></span>';

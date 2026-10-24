@@ -29,6 +29,21 @@ class Backup {
 	}
 
 	/**
+	 * The folder name, with its random ending. Made once, by add_option(), which cannot be beaten by a second request.
+	 *
+	 * @return string
+	 */
+	private static function folder_name() {
+		$token = (string) get_option( self::TOKEN, '' );
+		if ( '' === $token ) {
+			add_option( self::TOKEN, strtolower( wp_generate_password( 16, false, false ) ), '', false );
+			wp_cache_delete( self::TOKEN, 'options' );
+			$token = (string) get_option( self::TOKEN, '' );
+		}
+		return self::DIR . '-' . $token;
+	}
+
+	/**
 	 * Absolute backup directory, created on demand and closed to directory listing.
 	 *
 	 * @return string Path with a trailing slash, or an empty string when it cannot be created.
@@ -38,21 +53,20 @@ class Backup {
 		if ( ! empty( $uploads['error'] ) ) {
 			return '';
 		}
-		// A random ending on the folder name, so that on a server that ignores the access rule below the folder still cannot be guessed.
-		$token = (string) get_option( self::TOKEN, '' );
-		if ( '' === $token ) {
-			$token = strtolower( wp_generate_password( 16, false, false ) );
-			update_option( self::TOKEN, $token, false );
-		}
-		$dir = trailingslashit( $uploads['basedir'] ) . self::DIR . '-' . $token . '/';
+		$dir = trailingslashit( $uploads['basedir'] ) . self::folder_name() . '/';
 		if ( ! is_dir( $dir ) && ! wp_mkdir_p( $dir ) ) {
 			return '';
 		}
-		if ( ! file_exists( $dir . 'index.php' ) ) {
-			file_put_contents( $dir . 'index.php', "<?php\n// Silence is golden.\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-		}
-		if ( ! file_exists( $dir . '.htaccess' ) ) {
-			file_put_contents( $dir . '.htaccess', "Require all denied\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		// Apache and IIS honour these. Elsewhere the random folder name is the protection.
+		$guards = array(
+			'index.php'  => "<?php\n// Silence is golden.\n",
+			'.htaccess'  => "Require all denied\n",
+			'web.config' => "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<configuration><system.webServer><authorization><deny users=\"*\" /></authorization></system.webServer></configuration>\n",
+		);
+		foreach ( $guards as $file => $body ) {
+			if ( ! file_exists( $dir . $file ) ) {
+				file_put_contents( $dir . $file, $body ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+			}
 		}
 		return $dir;
 	}
@@ -60,9 +74,9 @@ class Backup {
 	/**
 	 * Move the original into the local backup folder.
 	 *
-	 * @param string $path          Absolute path of the original.
-	 * @param string $key           A unique key (attachment ID, or the converted file's basename during upload).
-	 * @return string|false Path relative to the backup folder, or false on failure.
+	 * @param string $path Absolute path of the original.
+	 * @param string $key  A unique key (attachment ID, or the converted file's basename during upload).
+	 * @return string|false Path relative to the uploads folder (it includes the backup folder's own name), or false on failure.
 	 */
 	public static function store_local( $path, $key ) {
 		$dir = self::dir();
@@ -77,21 +91,27 @@ class Backup {
 		if ( ! copy( $path, $sub . $name ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy
 			return false;
 		}
-		return sanitize_file_name( (string) $key ) . '/' . $name;
+		if ( filesize( $sub . $name ) !== filesize( $path ) ) {
+			wp_delete_file( $sub . $name );
+			return false;
+		}
+		return basename( untrailingslashit( $dir ) ) . '/' . sanitize_file_name( (string) $key ) . '/' . $name;
 	}
 
 	/**
-	 * Absolute path of a stored backup, kept inside the backup folder.
+	 * Absolute path of a stored backup. The record holds the folder name, so the saved original is found even if the setting that names the
+	 * folder is lost.
 	 *
-	 * @param string $relative Path relative to the backup folder.
+	 * @param string $relative Path relative to the uploads folder.
 	 * @return string Empty when the path is unsafe or missing.
 	 */
 	public static function resolve( $relative ) {
-		$dir  = self::dir();
-		$full = $dir . ltrim( (string) $relative, '/' );
-		if ( '' === $dir || false !== strpos( $relative, '..' ) || ! file_exists( $full ) ) {
+		$relative = (string) $relative;
+		if ( 0 !== strpos( $relative, self::DIR . '-' ) || false !== strpos( $relative, '..' ) || false !== strpos( $relative, '\\' ) ) {
 			return '';
 		}
-		return $full;
+		$uploads = wp_get_upload_dir();
+		$full    = trailingslashit( $uploads['basedir'] ) . $relative;
+		return is_file( $full ) ? $full : '';
 	}
 }

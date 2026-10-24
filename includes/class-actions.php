@@ -71,9 +71,12 @@ class Actions {
 	 * @return void
 	 */
 	public static function busy_script() {
+		echo '<p id="timu-formats-live" class="screen-reader-text" role="status" aria-live="polite"></p>';
 		wp_print_inline_script_tag(
 			"document.addEventListener('submit',function(e){var f=e.target;if(!f.classList||!f.classList.contains('timu-formats-form')){return;}" .
-			"var b=document.querySelectorAll('button[form=\"'+f.id+'\"]');for(var i=0;i<b.length;i++){b[i].disabled=true;b[i].setAttribute('aria-busy','true');b[i].textContent=" . wp_json_encode( __( 'Working. Please wait.', 'thisismyurl-image-formats' ) ) . ";}});"
+			"if(f.dataset.busy){e.preventDefault();return;}f.dataset.busy='1';var msg=" . wp_json_encode( __( 'Working. Please wait.', 'thisismyurl-image-formats' ) ) . ";" .
+			"var b=document.querySelectorAll('button[form=\"'+f.id+'\"]');for(var i=0;i<b.length;i++){b[i].setAttribute('aria-disabled','true');b[i].setAttribute('aria-busy','true');b[i].textContent=msg;}" .
+			"var l=document.getElementById('timu-formats-live');if(l){l.textContent=msg;}});"
 		);
 	}
 
@@ -131,8 +134,8 @@ class Actions {
 			return;
 		}
 		delete_transient( $key );
-		$class = in_array( $note['type'], array( 'success', 'error', 'info' ), true ) ? $note['type'] : 'info';
-		echo '<div class="notice notice-' . esc_attr( $class ) . ' is-dismissible" role="' . ( 'error' === $class ? 'alert' : 'status' ) . '"><p>' . esc_html( $note['text'] ) . '</p></div>';
+		$class = isset( $note['type'] ) && in_array( $note['type'], array( 'success', 'error', 'info' ), true ) ? $note['type'] : 'info';
+		echo '<div class="notice notice-' . esc_attr( $class ) . ' is-dismissible"><p>' . esc_html( isset( $note['text'] ) ? (string) $note['text'] : '' ) . '</p></div>';
 	}
 
 	/**
@@ -147,6 +150,9 @@ class Actions {
 			'format is left alone'          => __( 'This kind of picture is left exactly as it is.', 'thisismyurl-image-formats' ),
 			'no conversion needed'          => __( 'This picture is already a good kind for a website.', 'thisismyurl-image-formats' ),
 			'converted file was not smaller' => __( 'The new file would not have been smaller, so your picture was left exactly as it was.', 'thisismyurl-image-formats' ),
+			'edited in wordpress'           => __( 'This picture was cropped or turned in WordPress. It is left exactly as it is, so your edits stay safe.', 'thisismyurl-image-formats' ),
+			'extra files'                   => __( 'This picture has extra files that belong with it, so it is left exactly as it is.', 'thisismyurl-image-formats' ),
+			'shared file'                   => __( 'Another picture in your Media Library uses the same file, so it is left exactly as it is.', 'thisismyurl-image-formats' ),
 		);
 		return isset( $map[ $reason ] ) ? $map[ $reason ] : __( 'Your picture was left exactly as it was.', 'thisismyurl-image-formats' );
 	}

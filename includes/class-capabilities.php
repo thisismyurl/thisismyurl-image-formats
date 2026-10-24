@@ -94,10 +94,15 @@ class Capabilities {
 	 * @return string
 	 */
 	public static function library() {
-		$editor = _wp_image_editor_choose();
-		if ( ! $editor ) {
-			return 'none';
+		require_once ABSPATH . WPINC . '/class-wp-image-editor.php';
+		require_once ABSPATH . WPINC . '/class-wp-image-editor-gd.php';
+		require_once ABSPATH . WPINC . '/class-wp-image-editor-imagick.php';
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress's own filter, read so the answer matches what WordPress will use.
+		foreach ( (array) apply_filters( 'wp_image_editors', array( 'WP_Image_Editor_Imagick', 'WP_Image_Editor_GD' ) ) as $editor ) {
+			if ( is_string( $editor ) && class_exists( $editor ) && call_user_func( array( $editor, 'test' ) ) ) {
+				return false !== strpos( $editor, 'Imagick' ) ? 'Imagick' : 'GD';
+			}
 		}
-		return false !== strpos( $editor, 'Imagick' ) ? 'Imagick' : 'GD';
+		return 'none';
 	}
 }

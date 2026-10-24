@@ -21,7 +21,7 @@ class CLI {
 	 *
 	 * ## EXAMPLES
 	 *
-	 *     wp image-formats status
+	 *     wp timu-formats status
 	 *
 	 * @param array $args       Positional arguments.
 	 * @param array $assoc_args Named arguments.
@@ -51,16 +51,13 @@ class CLI {
 	 * [--all]
 	 * : Every image in the Media Library whose format the policy would convert.
 	 *
-	 * [--to=<mime>]
-	 * : Force a target MIME type, for example image/webp.
-	 *
 	 * [--dry-run]
-	 * : Say what would happen without changing anything.
+	 * : Say what would happen without changing anything. A JPEG or PNG is only really changed if the new file turns out smaller.
 	 *
 	 * ## EXAMPLES
 	 *
-	 *     wp image-formats convert 123
-	 *     wp image-formats convert --all --dry-run
+	 *     wp timu-formats convert 123
+	 *     wp timu-formats convert --all --dry-run
 	 *
 	 * @param array $args       Attachment IDs.
 	 * @param array $assoc_args Named arguments.
@@ -68,22 +65,31 @@ class CLI {
 	 */
 	public function convert( $args, $assoc_args ) {
 		$ids = array_map( 'intval', $args );
-		if ( ! empty( $assoc_args['all'] ) ) {
-			$ids = get_posts(
-				array(
-					'post_type'      => 'attachment',
-					'post_status'    => 'inherit',
-					'post_mime_type' => 'image',
-					'posts_per_page' => -1,
-					'fields'         => 'ids',
-					'orderby'        => 'ID',
-				)
-			);
+		$all = ! empty( $assoc_args['all'] );
+		if ( $all ) {
+			$ids  = array();
+			$page = 1;
+			do {
+				$batch = get_posts(
+					array(
+						'post_type'      => 'attachment',
+						'post_status'    => 'inherit',
+						'post_mime_type' => 'image',
+						'posts_per_page' => 200,
+						'paged'          => $page,
+						'fields'         => 'ids',
+						'orderby'        => 'ID',
+						'no_found_rows'  => true,
+					)
+				);
+				$ids   = array_merge( $ids, $batch );
+				++$page;
+			} while ( 200 === count( $batch ) );
 		}
 		if ( ! $ids ) {
 			WP_CLI::error( 'Give attachment IDs or --all.' );
 		}
-		$to      = isset( $assoc_args['to'] ) ? (string) $assoc_args['to'] : '';
+		$to      = '';
 		$dry     = ! empty( $assoc_args['dry-run'] );
 		$counts  = array( 'converted' => 0, 'would-convert' => 0, 'skipped' => 0, 'failed' => 0 );
 		$saved   = 0;
@@ -127,4 +133,4 @@ class CLI {
 	}
 }
 
-WP_CLI::add_command( 'image-formats', CLI::class );
+WP_CLI::add_command( 'timu-formats', CLI::class );

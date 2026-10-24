@@ -154,12 +154,13 @@ class Settings {
 	 * @return void
 	 */
 	private static function choice( $key, $value, $current, $label, $help = '', $best = false ) {
-		echo '<label class="timu-ui-choice"><input type="radio" name="' . esc_attr( self::OPTION . '[' . $key . ']' ) . '" value="' . esc_attr( $value ) . '" ' . checked( $value, $current, false ) . '> ' . esc_html( $label );
+		$hid = 'timu-h-' . $key . '-' . $value;
+		echo '<label class="timu-ui-choice"><input type="radio" name="' . esc_attr( self::OPTION . '[' . $key . ']' ) . '" value="' . esc_attr( $value ) . '" ' . ( '' !== $help ? 'aria-describedby="' . esc_attr( $hid ) . '" ' : '' ) . checked( $value, $current, false ) . '> ' . esc_html( $label );
 		if ( $best ) {
 			echo '<span class="timu-ui-tag">' . esc_html__( 'Recommended', 'thisismyurl-image-formats' ) . '</span>';
 		}
 		if ( '' !== $help ) {
-			echo '<small>' . esc_html( $help ) . '</small>';
+			echo '<small id="' . esc_attr( $hid ) . '">' . esc_html( $help ) . '</small>';
 		}
 		echo '</label>';
 	}
@@ -232,10 +233,10 @@ class Settings {
 					</div>
 					<div class="timu-ui-card">
 						<div class="timu-ui-field">
-							<span class="timu-ui-label"><?php esc_html_e( 'When I add one', 'thisismyurl-image-formats' ); ?></span>
-							<div>
-								<label><input type="checkbox" name="<?php echo esc_attr( $name ); ?>[convert_nonweb]" value="1" <?php checked( 1, (int) $s['convert_nonweb'] ); ?>> <?php esc_html_e( 'Fix it for me (recommended)', 'thisismyurl-image-formats' ); ?></label>
-								<p class="timu-ui-help"><?php esc_html_e( 'This is already turned on. Pictures you added earlier are not touched unless you choose them yourself.', 'thisismyurl-image-formats' ); ?></p>
+							<span class="timu-ui-label" id="timu-l-nonweb"><?php esc_html_e( 'When I add one', 'thisismyurl-image-formats' ); ?></span>
+							<div role="group" aria-labelledby="timu-l-nonweb">
+								<label><input type="checkbox" name="<?php echo esc_attr( $name ); ?>[convert_nonweb]" value="1" aria-describedby="timu-h-nonweb" <?php checked( 1, (int) $s['convert_nonweb'] ); ?>> <?php esc_html_e( 'Fix it for me (recommended)', 'thisismyurl-image-formats' ); ?></label>
+								<p class="timu-ui-help" id="timu-h-nonweb"><?php esc_html_e( 'This is already turned on. Pictures you added earlier are not touched unless you choose them yourself.', 'thisismyurl-image-formats' ); ?></p>
 							</div>
 						</div>
 						<details class="timu-ui-more">
@@ -271,10 +272,10 @@ class Settings {
 					</div>
 					<div class="timu-ui-card">
 						<div class="timu-ui-field">
-							<span class="timu-ui-label"><?php esc_html_e( 'New JPEG and PNG pictures', 'thisismyurl-image-formats' ); ?></span>
-							<div>
-								<label><input type="checkbox" name="<?php echo esc_attr( $name ); ?>[convert_jpeg_png]" value="1" <?php checked( 1, (int) $s['convert_jpeg_png'] ); ?>> <?php esc_html_e( 'Also make them smaller', 'thisismyurl-image-formats' ); ?></label>
-								<p class="timu-ui-help"><?php esc_html_e( 'If the new file would not be smaller, your original picture is kept exactly as it was.', 'thisismyurl-image-formats' ); ?></p>
+							<span class="timu-ui-label" id="timu-l-jp"><?php esc_html_e( 'New JPEG and PNG pictures', 'thisismyurl-image-formats' ); ?></span>
+							<div role="group" aria-labelledby="timu-l-jp">
+								<label><input type="checkbox" name="<?php echo esc_attr( $name ); ?>[convert_jpeg_png]" value="1" aria-describedby="timu-h-jp" <?php checked( 1, (int) $s['convert_jpeg_png'] ); ?>> <?php esc_html_e( 'Also make them smaller', 'thisismyurl-image-formats' ); ?></label>
+								<p class="timu-ui-help" id="timu-h-jp"><?php esc_html_e( 'If the new file would not be smaller, your original picture is kept exactly as it was.', 'thisismyurl-image-formats' ); ?></p>
 							</div>
 						</div>
 						<details class="timu-ui-more">
@@ -313,8 +314,8 @@ class Settings {
 							<div class="timu-ui-field">
 								<label class="timu-ui-label" for="timu-quality"><?php esc_html_e( 'Quality', 'thisismyurl-image-formats' ); ?></label>
 								<div>
-									<input id="timu-quality" type="number" min="40" max="100" name="<?php echo esc_attr( $name ); ?>[quality]" value="<?php echo esc_attr( (string) (int) $s['quality'] ); ?>" class="small-text">
-									<p class="timu-ui-help"><?php esc_html_e( 'A number from 40 to 100. It is used whenever a picture is changed into WebP, AVIF or JPEG. 82 is a good choice. A higher number looks a little better and makes a bigger file.', 'thisismyurl-image-formats' ); ?></p>
+									<input id="timu-quality" type="number" min="40" max="100" name="<?php echo esc_attr( $name ); ?>[quality]" value="<?php echo esc_attr( (string) (int) $s['quality'] ); ?>" class="small-text" aria-describedby="timu-h-q">
+									<p class="timu-ui-help" id="timu-h-q"><?php esc_html_e( 'A number from 40 to 100. It is used whenever a picture is changed into WebP, AVIF or JPEG. 82 is a good choice. A higher number looks a little better and makes a bigger file.', 'thisismyurl-image-formats' ); ?></p>
 								</div>
 							</div>
 						</details>

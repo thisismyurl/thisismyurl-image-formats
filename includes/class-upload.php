@@ -10,8 +10,9 @@ namespace ThisIsMyURL\ImageFormats;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Hooks `wp_handle_upload`, which WordPress applies to browser, REST API and sideloaded (WP-CLI) uploads alike. The converted file replaces the
- * upload before the attachment is created, so the Media Library only ever sees the new format.
+ * Hooks `wp_handle_upload`. The converted file replaces the upload before the attachment is created, so the Media Library only ever sees the
+ * new format. Only pictures added through the Media Library (the uploader, the block editor and the REST media route) are touched. Other
+ * plugins' uploads and WordPress's own background "sideload" files are left exactly alone.
  */
 class Upload {
 
@@ -33,6 +34,27 @@ class Upload {
 	}
 
 	/**
+	 * Is this request somebody adding a picture to the Media Library?
+	 *
+	 * @return bool
+	 */
+	private static function is_library_upload() {
+		if ( ! current_user_can( 'upload_files' ) ) {
+			return false;
+		}
+		if ( wp_doing_ajax() ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- only reads which action is running; core checks the nonce.
+			return isset( $_REQUEST['action'] ) && 'upload-attachment' === sanitize_key( wp_unslash( $_REQUEST['action'] ) );
+		}
+		if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+			$route = isset( $GLOBALS['wp']->query_vars['rest_route'] ) ? (string) $GLOBALS['wp']->query_vars['rest_route'] : '';
+			return 1 === preg_match( '#^/wp/v2/media/?$#', $route );
+		}
+		global $pagenow;
+		return in_array( $pagenow, array( 'async-upload.php', 'media-new.php' ), true );
+	}
+
+	/**
 	 * Convert a freshly uploaded file if the policy says to.
 	 *
 	 * @param array  $upload  {file, url, type}.
@@ -40,6 +62,9 @@ class Upload {
 	 * @return array The upload array, changed if a conversion happened.
 	 */
 	public static function convert_upload( $upload, $context = 'upload' ) {
+		if ( 'upload' !== $context || ! self::is_library_upload() ) {
+			return $upload;
+		}
 		if ( ! is_array( $upload ) || ! empty( $upload['error'] ) || empty( $upload['file'] ) || empty( $upload['type'] ) ) {
 			return $upload;
 		}
@@ -83,9 +108,8 @@ class Upload {
 			}
 			$stored = 'local:' . $kept;
 		}
-		$uploads  = wp_get_upload_dir();
-		$rel_old  = ltrim( str_replace( trailingslashit( $uploads['basedir'] ), '', $upload['file'] ), '/' );
-		$old_name = wp_basename( $upload['file'] );
+		$uploads = wp_get_upload_dir();
+		$rel_old = ltrim( str_replace( trailingslashit( $uploads['basedir'] ), '', $upload['file'] ), '/' );
 
 		wp_delete_file( $upload['file'] );
 		self::$pending[ wp_normalize_path( $new['path'] ) ] = array(
@@ -102,7 +126,6 @@ class Upload {
 		$upload['file'] = $new['path'];
 		$upload['url']  = trailingslashit( dirname( $upload['url'] ) ) . wp_basename( $new['path'] );
 		$upload['type'] = $target;
-		unset( $old_name );
 		return $upload;
 	}
 
