@@ -33,7 +33,7 @@ Coming later: fixing the links to a changed picture inside your pages and posts,
 
 1. Download the zip file. In your dashboard, go to Plugins, then Add New Plugin, then Upload Plugin.
 2. Choose the zip file and press Install Now, then Activate.
-3. That is all. If you want to look at the settings, go to Settings, then Image Formats.
+3. That is all. If you want to look at the settings, go to Media, then Image Formats.
 
 == Frequently Asked Questions ==
 

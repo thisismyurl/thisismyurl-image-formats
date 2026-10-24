@@ -10,7 +10,7 @@ namespace ThisIsMyURL\ImageFormats;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Plain-language actions for people who do not use the command line. Every action checks who is asking, checks a one-time link, and
+ * Plain-language actions for people who do not use the command line. Every action checks who is asking, checks a one-time code, and
  * says in ordinary words what happened.
  */
 class Actions {
@@ -30,14 +30,51 @@ class Actions {
 	}
 
 	/**
-	 * A one-time link for an action on one picture.
+	 * The form for an action on one picture. It is printed outside the editing form (WordPress does not allow a form inside a form) and
+	 * the button refers to it by id, so the button can sit wherever it reads best.
 	 *
 	 * @param string $action CONVERT or RESTORE.
 	 * @param int    $id     Attachment ID.
-	 * @return string
+	 * @return string The form's id.
 	 */
-	public static function url( $action, $id ) {
-		return wp_nonce_url( add_query_arg( array( 'action' => $action, 'id' => (int) $id ), admin_url( 'admin-post.php' ) ), $action . '_' . (int) $id );
+	public static function form_id( $action, $id ) {
+		return 'timu-formats-form-' . $action . '-' . (int) $id;
+	}
+
+	/**
+	 * Queue the hidden form for one action, printed in the footer.
+	 *
+	 * @param string $action CONVERT or RESTORE.
+	 * @param int    $id     Attachment ID.
+	 * @return void
+	 */
+	public static function queue_form( $action, $id ) {
+		$id = (int) $id;
+		add_action(
+			'admin_footer',
+			static function () use ( $action, $id ) {
+				echo '<form id="' . esc_attr( self::form_id( $action, $id ) ) . '" class="timu-formats-form" method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+				echo '<input type="hidden" name="action" value="' . esc_attr( $action ) . '">';
+				echo '<input type="hidden" name="id" value="' . esc_attr( (string) $id ) . '">';
+				wp_nonce_field( $action . '_' . $id );
+				echo '</form>';
+			}
+		);
+		if ( ! has_action( 'admin_footer', array( __CLASS__, 'busy_script' ) ) ) {
+			add_action( 'admin_footer', array( __CLASS__, 'busy_script' ) );
+		}
+	}
+
+	/**
+	 * Once a button is pressed, show that work is happening and ignore a second press.
+	 *
+	 * @return void
+	 */
+	public static function busy_script() {
+		wp_print_inline_script_tag(
+			"document.addEventListener('submit',function(e){var f=e.target;if(!f.classList||!f.classList.contains('timu-formats-form')){return;}" .
+			"var b=document.querySelectorAll('button[form=\"'+f.id+'\"]');for(var i=0;i<b.length;i++){b[i].disabled=true;b[i].setAttribute('aria-busy','true');b[i].textContent=" . wp_json_encode( __( 'Working. Please wait.', 'thisismyurl-image-formats' ) ) . ";}});"
+		);
 	}
 
 	/**
@@ -95,7 +132,7 @@ class Actions {
 		}
 		delete_transient( $key );
 		$class = in_array( $note['type'], array( 'success', 'error', 'info' ), true ) ? $note['type'] : 'info';
-		echo '<div class="notice notice-' . esc_attr( $class ) . ' is-dismissible"><p>' . esc_html( $note['text'] ) . '</p></div>';
+		echo '<div class="notice notice-' . esc_attr( $class ) . ' is-dismissible" role="' . ( 'error' === $class ? 'alert' : 'status' ) . '"><p>' . esc_html( $note['text'] ) . '</p></div>';
 	}
 
 	/**
@@ -121,7 +158,7 @@ class Actions {
 	 * @return int
 	 */
 	private static function checked_id( $action ) {
-		$id = isset( $_GET['id'] ) ? absint( wp_unslash( $_GET['id'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification -- verified on the next line.
+		$id = isset( $_POST['id'] ) ? absint( wp_unslash( $_POST['id'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification -- verified on the next line.
 		check_admin_referer( $action . '_' . $id );
 		if ( ! $id || ! current_user_can( 'edit_post', $id ) || ! current_user_can( 'upload_files' ) ) {
 			wp_die( esc_html__( 'You are not allowed to change this picture.', 'thisismyurl-image-formats' ), '', array( 'response' => 403 ) );
@@ -147,10 +184,7 @@ class Actions {
 	 * @return void
 	 */
 	private static function back( $id ) {
-		$to = wp_get_referer();
-		if ( ! $to ) {
-			$to = get_edit_post_link( $id, 'url' );
-		}
+		$to = get_edit_post_link( $id, 'url' );
 		wp_safe_redirect( $to ? $to : admin_url( 'upload.php' ) );
 		exit;
 	}

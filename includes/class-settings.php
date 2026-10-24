@@ -101,23 +101,72 @@ class Settings {
 	}
 
 	/**
-	 * Register the screen (admin_menu).
+	 * Register the screen (admin_menu). It lives under Media, next to Image Support, because that is where pictures are looked after.
 	 *
 	 * @return void
 	 */
 	public static function register_menu() {
-		add_options_page(
+		$hook = add_submenu_page(
+			'upload.php',
 			__( 'Image Formats', 'thisismyurl-image-formats' ),
 			__( 'Image Formats', 'thisismyurl-image-formats' ),
 			'manage_options',
 			self::PAGE,
 			array( __CLASS__, 'render' )
 		);
+		if ( $hook ) {
+			add_action( 'load-' . $hook, array( __CLASS__, 'enqueue_ui' ) );
+		}
+	}
+
+	/**
+	 * Load the shared stylesheet for this screen.
+	 *
+	 * @return void
+	 */
+	public static function enqueue_ui() {
+		add_action( 'admin_enqueue_scripts', array( Ui::class, 'enqueue' ) );
+	}
+
+	/**
+	 * The screen used to live under Settings. Old bookmarks and links still arrive safely.
+	 *
+	 * @return void
+	 */
+	public static function redirect_old_address() {
+		global $pagenow;
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- only a page name is read, to forward the visitor.
+		if ( 'options-general.php' === $pagenow && isset( $_GET['page'] ) && self::PAGE === sanitize_key( wp_unslash( $_GET['page'] ) ) ) {
+			wp_safe_redirect( admin_url( 'upload.php?page=' . self::PAGE ) );
+			exit;
+		}
+	}
+
+	/**
+	 * One radio choice, with a short plain-words line under it.
+	 *
+	 * @param string $key     Setting key.
+	 * @param string $value   This choice's value.
+	 * @param string $current Saved value.
+	 * @param string $label   Words for the choice.
+	 * @param string $help    One short line under it.
+	 * @param bool   $best    Mark as the recommended choice.
+	 * @return void
+	 */
+	private static function choice( $key, $value, $current, $label, $help = '', $best = false ) {
+		echo '<label class="timu-ui-choice"><input type="radio" name="' . esc_attr( self::OPTION . '[' . $key . ']' ) . '" value="' . esc_attr( $value ) . '" ' . checked( $value, $current, false ) . '> ' . esc_html( $label );
+		if ( $best ) {
+			echo '<span class="timu-ui-tag">' . esc_html__( 'Recommended', 'thisismyurl-image-formats' ) . '</span>';
+		}
+		if ( '' !== $help ) {
+			echo '<small>' . esc_html( $help ) . '</small>';
+		}
+		echo '</label>';
 	}
 
 	/**
 	 * Settings screen. Written for someone who does not use computers much: it says what the tool does, says it is safe before anything
-	 * else, and has every setting already chosen.
+	 * else, and has every setting already chosen. The choices a beginner needs are in view; the rest sit under "More options".
 	 *
 	 * @return void
 	 */
@@ -133,99 +182,149 @@ class Settings {
 			},
 			$targets
 		);
-		$name = self::OPTION;
+		$kept    = 'local' === $s['backup'];
+		$name    = self::OPTION;
 		?>
-		<div class="wrap">
-			<h1><?php esc_html_e( 'Image Formats', 'thisismyurl-image-formats' ); ?></h1>
+		<div class="wrap timu-ui">
+			<header class="timu-ui-head">
+				<div>
+					<h1><?php esc_html_e( 'Image Formats', 'thisismyurl-image-formats' ); ?></h1>
+					<p class="timu-ui-lede"><?php esc_html_e( 'Changes pictures your website cannot show into pictures it can.', 'thisismyurl-image-formats' ); ?></p>
+				</div>
+				<div class="timu-ui-head-actions">
+					<a class="button" href="<?php echo esc_url( admin_url( 'upload.php?mode=list' ) ); ?>"><?php esc_html_e( 'Open your pictures', 'thisismyurl-image-formats' ); ?></a>
+				</div>
+			</header>
+			<hr class="wp-header-end">
+			<?php settings_errors(); ?>
 
-			<p style="max-width:44em;font-size:15px">
-				<?php esc_html_e( 'Some picture files are too big for a website, or cannot be shown in a web browser at all. This tool changes them into pictures that work well on websites.', 'thisismyurl-image-formats' ); ?>
-			</p>
-
-			<div class="notice notice-info inline" style="max-width:44em;padding:4px 14px">
-				<p><strong><?php esc_html_e( 'You do not need to change anything on this page.', 'thisismyurl-image-formats' ); ?></strong>
-				<?php esc_html_e( 'Everything is already set up for you.', 'thisismyurl-image-formats' ); ?></p>
-				<p><?php esc_html_e( 'Before any picture is changed, a copy of the original is saved in a safe place. You can put the original back at any time, from the picture\'s own page in your Media Library.', 'thisismyurl-image-formats' ); ?></p>
+			<div class="timu-ui-assure <?php echo $kept ? '' : 'timu-ui-assure--note'; ?>">
+				<span class="dashicons dashicons-shield" aria-hidden="true"></span>
+				<div>
+					<p><strong><?php esc_html_e( 'You do not need to change anything here.', 'thisismyurl-image-formats' ); ?></strong> <?php esc_html_e( 'Everything is already set up for you.', 'thisismyurl-image-formats' ); ?></p>
+					<p>
+						<?php
+						echo esc_html(
+							$kept
+								? __( 'Before a picture is changed, a copy of the original is saved in a folder on your website. You can put it back at any time, from the picture\'s own page.', 'thisismyurl-image-formats' )
+								: __( 'You chose not to keep copies of originals, so a changed picture cannot be put back. You can change that below.', 'thisismyurl-image-formats' )
+						);
+						?>
+					</p>
+				</div>
 			</div>
+
+			<p>
+				<?php
+				echo Ui::pill( $s['convert_nonweb'] ? 'good' : 'info', $s['convert_nonweb'] ? __( 'Fixing new BMP, TIFF and iPhone pictures: on', 'thisismyurl-image-formats' ) : __( 'Fixing new BMP, TIFF and iPhone pictures: off', 'thisismyurl-image-formats' ) ); // phpcs:ignore WordPress.Security.EscapeOutput -- Ui::pill escapes.
+				echo ' ';
+				echo Ui::pill( $kept ? 'good' : 'note', $kept ? __( 'Copies of originals: kept', 'thisismyurl-image-formats' ) : __( 'Copies of originals: not kept', 'thisismyurl-image-formats' ) ); // phpcs:ignore WordPress.Security.EscapeOutput -- Ui::pill escapes.
+				?>
+			</p>
 
 			<form method="post" action="options.php">
 				<?php settings_fields( self::GROUP ); ?>
 
-				<h2><?php esc_html_e( 'Pictures that web browsers cannot show', 'thisismyurl-image-formats' ); ?></h2>
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Fix them when I add them', 'thisismyurl-image-formats' ); ?></th>
-						<td>
-							<label><input type="checkbox" name="<?php echo esc_attr( $name ); ?>[convert_nonweb]" value="1" <?php checked( 1, (int) $s['convert_nonweb'] ); ?>> <?php esc_html_e( 'Yes, fix BMP, TIFF and iPhone (HEIC) pictures', 'thisismyurl-image-formats' ); ?></label>
-							<p class="description"><?php esc_html_e( 'These kinds of picture often do not show on a website. This is already turned on for you.', 'thisismyurl-image-formats' ); ?></p>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="timu-graphic"><?php esc_html_e( 'BMP and TIFF pictures become', 'thisismyurl-image-formats' ); ?></label></th>
-						<td>
-							<select id="timu-graphic" name="<?php echo esc_attr( $name ); ?>[graphic_format]">
-								<option value="png" <?php selected( 'png', $s['graphic_format'] ); ?>><?php esc_html_e( 'PNG (recommended). Keeps every detail.', 'thisismyurl-image-formats' ); ?></option>
-								<option value="webp" <?php selected( 'webp', $s['graphic_format'] ); ?>><?php esc_html_e( 'WebP. A smaller file that looks the same to most people.', 'thisismyurl-image-formats' ); ?></option>
-							</select>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="timu-photo"><?php esc_html_e( 'iPhone (HEIC) pictures become', 'thisismyurl-image-formats' ); ?></label></th>
-						<td>
-							<select id="timu-photo" name="<?php echo esc_attr( $name ); ?>[photo_format]">
-								<option value="auto" <?php selected( 'auto', $s['photo_format'] ); ?>><?php esc_html_e( 'The best kind your website can use (recommended)', 'thisismyurl-image-formats' ); ?></option>
-								<option value="avif" <?php selected( 'avif', $s['photo_format'] ); ?>><?php esc_html_e( 'AVIF. Very small files.', 'thisismyurl-image-formats' ); ?></option>
-								<option value="webp" <?php selected( 'webp', $s['photo_format'] ); ?>><?php esc_html_e( 'WebP. Small files.', 'thisismyurl-image-formats' ); ?></option>
-								<option value="jpeg" <?php selected( 'jpeg', $s['photo_format'] ); ?>><?php esc_html_e( 'JPEG. Works almost everywhere.', 'thisismyurl-image-formats' ); ?></option>
-							</select>
-						</td>
-					</tr>
-				</table>
+				<section class="timu-ui-sec">
+					<div class="timu-ui-sec-head">
+						<h2><?php esc_html_e( 'Pictures that web browsers cannot show', 'thisismyurl-image-formats' ); ?></h2>
+						<p><?php esc_html_e( 'BMP, TIFF and iPhone (HEIC) pictures often do not appear on a website. This turns them into pictures that do.', 'thisismyurl-image-formats' ); ?></p>
+					</div>
+					<div class="timu-ui-card">
+						<div class="timu-ui-field">
+							<span class="timu-ui-label"><?php esc_html_e( 'When I add one', 'thisismyurl-image-formats' ); ?></span>
+							<div>
+								<label><input type="checkbox" name="<?php echo esc_attr( $name ); ?>[convert_nonweb]" value="1" <?php checked( 1, (int) $s['convert_nonweb'] ); ?>> <?php esc_html_e( 'Fix it for me (recommended)', 'thisismyurl-image-formats' ); ?></label>
+								<p class="timu-ui-help"><?php esc_html_e( 'This is already turned on. Pictures you added earlier are not touched unless you choose them yourself.', 'thisismyurl-image-formats' ); ?></p>
+							</div>
+						</div>
+						<details class="timu-ui-more">
+							<summary><?php esc_html_e( 'More options', 'thisismyurl-image-formats' ); ?></summary>
+							<div class="timu-ui-field">
+								<fieldset>
+									<legend class="timu-ui-label"><?php esc_html_e( 'BMP and TIFF pictures become', 'thisismyurl-image-formats' ); ?></legend>
+									<?php
+									self::choice( 'graphic_format', 'png', $s['graphic_format'], __( 'PNG', 'thisismyurl-image-formats' ), __( 'Keeps every detail.', 'thisismyurl-image-formats' ), true );
+									self::choice( 'graphic_format', 'webp', $s['graphic_format'], __( 'WebP', 'thisismyurl-image-formats' ), __( 'A smaller file that looks the same to most people.', 'thisismyurl-image-formats' ) );
+									?>
+								</fieldset>
+							</div>
+							<div class="timu-ui-field">
+								<fieldset>
+									<legend class="timu-ui-label"><?php esc_html_e( 'iPhone (HEIC) pictures become', 'thisismyurl-image-formats' ); ?></legend>
+									<?php
+									self::choice( 'photo_format', 'auto', $s['photo_format'], __( 'The best kind your website can use', 'thisismyurl-image-formats' ), '', true );
+									self::choice( 'photo_format', 'avif', $s['photo_format'], __( 'AVIF', 'thisismyurl-image-formats' ), __( 'Very small files.', 'thisismyurl-image-formats' ) );
+									self::choice( 'photo_format', 'webp', $s['photo_format'], __( 'WebP', 'thisismyurl-image-formats' ), __( 'Small files.', 'thisismyurl-image-formats' ) );
+									self::choice( 'photo_format', 'jpeg', $s['photo_format'], __( 'JPEG', 'thisismyurl-image-formats' ), __( 'Works almost everywhere.', 'thisismyurl-image-formats' ) );
+									?>
+								</fieldset>
+							</div>
+						</details>
+					</div>
+				</section>
 
-				<h2><?php esc_html_e( 'Make other pictures smaller (optional)', 'thisismyurl-image-formats' ); ?></h2>
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><?php esc_html_e( 'JPEG and PNG pictures', 'thisismyurl-image-formats' ); ?></th>
-						<td>
-							<label><input type="checkbox" name="<?php echo esc_attr( $name ); ?>[convert_jpeg_png]" value="1" <?php checked( 1, (int) $s['convert_jpeg_png'] ); ?>> <?php esc_html_e( 'Also make new JPEG and PNG pictures smaller', 'thisismyurl-image-formats' ); ?></label>
-							<p class="description"><?php esc_html_e( 'This is turned off. JPEG and PNG pictures already work everywhere, so there is no need. If you turn it on and the new file would not be smaller, your original picture is kept exactly as it was.', 'thisismyurl-image-formats' ); ?></p>
-							<p>
-								<label for="timu-web"><?php esc_html_e( 'Kind of picture to use:', 'thisismyurl-image-formats' ); ?></label>
-								<select id="timu-web" name="<?php echo esc_attr( $name ); ?>[web_format]">
-									<option value="auto" <?php selected( 'auto', $s['web_format'] ); ?>><?php esc_html_e( 'The best kind your website can use (recommended)', 'thisismyurl-image-formats' ); ?></option>
-									<option value="avif" <?php selected( 'avif', $s['web_format'] ); ?>>AVIF</option>
-									<option value="webp" <?php selected( 'webp', $s['web_format'] ); ?>>WebP</option>
-								</select>
-							</p>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="timu-quality"><?php esc_html_e( 'Picture quality', 'thisismyurl-image-formats' ); ?></label></th>
-						<td>
-							<input id="timu-quality" type="number" min="40" max="100" name="<?php echo esc_attr( $name ); ?>[quality]" value="<?php echo esc_attr( (string) (int) $s['quality'] ); ?>" class="small-text">
-							<p class="description"><?php esc_html_e( 'A number from 40 to 100. 82 is a good choice. A higher number looks a little better and makes a bigger file.', 'thisismyurl-image-formats' ); ?></p>
-						</td>
-					</tr>
-				</table>
+				<section class="timu-ui-sec">
+					<div class="timu-ui-sec-head">
+						<h2><?php esc_html_e( 'Make other pictures smaller (optional)', 'thisismyurl-image-formats' ); ?></h2>
+						<p><?php esc_html_e( 'JPEG and PNG pictures already work everywhere, so this is turned off. You do not need it.', 'thisismyurl-image-formats' ); ?></p>
+					</div>
+					<div class="timu-ui-card">
+						<div class="timu-ui-field">
+							<span class="timu-ui-label"><?php esc_html_e( 'New JPEG and PNG pictures', 'thisismyurl-image-formats' ); ?></span>
+							<div>
+								<label><input type="checkbox" name="<?php echo esc_attr( $name ); ?>[convert_jpeg_png]" value="1" <?php checked( 1, (int) $s['convert_jpeg_png'] ); ?>> <?php esc_html_e( 'Also make them smaller', 'thisismyurl-image-formats' ); ?></label>
+								<p class="timu-ui-help"><?php esc_html_e( 'If the new file would not be smaller, your original picture is kept exactly as it was.', 'thisismyurl-image-formats' ); ?></p>
+							</div>
+						</div>
+						<details class="timu-ui-more">
+							<summary><?php esc_html_e( 'More options', 'thisismyurl-image-formats' ); ?></summary>
+							<div class="timu-ui-field">
+								<fieldset>
+									<legend class="timu-ui-label"><?php esc_html_e( 'Kind of picture to use', 'thisismyurl-image-formats' ); ?></legend>
+									<?php
+									self::choice( 'web_format', 'auto', $s['web_format'], __( 'The best kind your website can use', 'thisismyurl-image-formats' ), '', true );
+									self::choice( 'web_format', 'avif', $s['web_format'], __( 'AVIF', 'thisismyurl-image-formats' ), __( 'Very small files.', 'thisismyurl-image-formats' ) );
+									self::choice( 'web_format', 'webp', $s['web_format'], __( 'WebP', 'thisismyurl-image-formats' ), __( 'Small files.', 'thisismyurl-image-formats' ) );
+									?>
+								</fieldset>
+							</div>
+						</details>
+					</div>
+				</section>
 
-				<h2><?php esc_html_e( 'Keeping your originals safe', 'thisismyurl-image-formats' ); ?></h2>
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><label for="timu-backup"><?php esc_html_e( 'Keep a copy of the original', 'thisismyurl-image-formats' ); ?></label></th>
-						<td>
-							<select id="timu-backup" name="<?php echo esc_attr( $name ); ?>[backup]">
-								<option value="local" <?php selected( 'local', $s['backup'] ); ?>><?php esc_html_e( 'Yes, keep a copy in a safe folder (recommended)', 'thisismyurl-image-formats' ); ?></option>
-								<option value="none" <?php selected( 'none', $s['backup'] ); ?>><?php esc_html_e( 'No, delete the original after the change', 'thisismyurl-image-formats' ); ?></option>
-							</select>
-							<p class="description"><?php esc_html_e( 'If you choose "No", you will not be able to put an original back. We suggest leaving this on "Yes".', 'thisismyurl-image-formats' ); ?></p>
-						</td>
-					</tr>
-				</table>
+				<section class="timu-ui-sec">
+					<div class="timu-ui-sec-head">
+						<h2><?php esc_html_e( 'Keeping your originals safe', 'thisismyurl-image-formats' ); ?></h2>
+						<p><?php esc_html_e( 'This is what lets you undo a change.', 'thisismyurl-image-formats' ); ?></p>
+					</div>
+					<div class="timu-ui-card">
+						<div class="timu-ui-field">
+							<fieldset>
+								<legend class="timu-ui-label"><?php esc_html_e( 'Keep a copy of the original', 'thisismyurl-image-formats' ); ?></legend>
+								<?php
+								self::choice( 'backup', 'local', $s['backup'], __( 'Yes, keep a copy in a safe folder', 'thisismyurl-image-formats' ), __( 'You can put any original back whenever you like.', 'thisismyurl-image-formats' ), true );
+								self::choice( 'backup', 'none', $s['backup'], __( 'No, delete the original after the change', 'thisismyurl-image-formats' ), __( 'You will not be able to put an original back.', 'thisismyurl-image-formats' ) );
+								?>
+							</fieldset>
+						</div>
+						<details class="timu-ui-more">
+							<summary><?php esc_html_e( 'Picture quality', 'thisismyurl-image-formats' ); ?></summary>
+							<div class="timu-ui-field">
+								<label class="timu-ui-label" for="timu-quality"><?php esc_html_e( 'Quality', 'thisismyurl-image-formats' ); ?></label>
+								<div>
+									<input id="timu-quality" type="number" min="40" max="100" name="<?php echo esc_attr( $name ); ?>[quality]" value="<?php echo esc_attr( (string) (int) $s['quality'] ); ?>" class="small-text">
+									<p class="timu-ui-help"><?php esc_html_e( 'A number from 40 to 100. It is used whenever a picture is changed into WebP, AVIF or JPEG. 82 is a good choice. A higher number looks a little better and makes a bigger file.', 'thisismyurl-image-formats' ); ?></p>
+								</div>
+							</div>
+						</details>
+					</div>
+				</section>
 
-				<?php submit_button( __( 'Save changes', 'thisismyurl-image-formats' ) ); ?>
+				<p class="timu-ui-actions"><?php submit_button( __( 'Save changes', 'thisismyurl-image-formats' ), 'primary', 'submit', false ); ?></p>
 			</form>
 
-			<p class="description" style="max-width:44em">
+			<p class="timu-ui-help">
 				<?php
 				echo esc_html(
 					$names
@@ -238,6 +337,16 @@ class Settings {
 				);
 				?>
 			</p>
+
+			<?php
+			Ui::footer(
+				'<span class="dashicons dashicons-shield" aria-hidden="true"></span><span>' . esc_html(
+					$kept
+						? __( 'A copy of every original is kept in a folder on your site, and you can put it back from the picture\'s own page.', 'thisismyurl-image-formats' )
+						: __( 'You chose not to keep copies, so changed pictures cannot be put back.', 'thisismyurl-image-formats' )
+				) . '</span>'
+			);
+			?>
 		</div>
 		<?php
 	}

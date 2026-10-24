@@ -24,6 +24,7 @@ define( 'TIMU_FORMATS_FILE', __FILE__ );
 define( 'TIMU_FORMATS_DIR', plugin_dir_path( __FILE__ ) );
 
 require_once TIMU_FORMATS_DIR . 'includes/class-capabilities.php';
+require_once TIMU_FORMATS_DIR . 'includes/class-ui.php';
 require_once TIMU_FORMATS_DIR . 'includes/class-settings.php';
 require_once TIMU_FORMATS_DIR . 'includes/class-policy.php';
 require_once TIMU_FORMATS_DIR . 'includes/class-backup.php';
