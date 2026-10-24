@@ -45,7 +45,7 @@ Changing many pictures at once from the dashboard, and safe handling of SVG pict
 
 == Installation ==
 
-1. In your dashboard, go to Plugins, then Add New Plugin, and search for "Image Formats". Press Install Now, then Activate.
+1. In your dashboard, go to Plugins, then Add New Plugin, then Upload Plugin, and choose the zip file (or, once the plugin is listed in the WordPress.org directory, search for "Image Formats" and press Install Now). Then press Activate.
 2. That is all. Nothing is changed until you add a BMP, TIFF or iPhone picture, or press a button on a picture's page.
 3. If you want to look at the settings, go to Media, then Image Formats.
 
