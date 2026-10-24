@@ -108,9 +108,11 @@ class Converter {
 			return new WP_Error( 'timu_formats_read', __( 'This website could not open that picture, so nothing was changed.', 'thisismyurl-image-formats' ), $editor->get_error_message() );
 		}
 
-		$size = $editor->get_size();
+		$size    = $editor->get_size();
+		$rotated = false;
 		if ( in_array( $source_mime, array( 'image/jpeg', 'image/heic', 'image/heif' ), true ) && method_exists( $editor, 'maybe_exif_rotate' ) ) {
 			$editor->maybe_exif_rotate();
+			$rotated = true; // The pixels are upright now, so the new file must not be turned again.
 		}
 		$editor->set_quality( Policy::quality_for( $target_mime, $source_mime ) );
 
@@ -139,6 +141,7 @@ class Converter {
 			'width'  => isset( $saved['width'] ) ? (int) $saved['width'] : (int) $size['width'],
 			'height' => isset( $saved['height'] ) ? (int) $saved['height'] : (int) $size['height'],
 			'size'   => (int) filesize( $out ),
+			'rotated' => $rotated,
 		);
 	}
 
@@ -157,6 +160,10 @@ class Converter {
 		$path          = get_attached_file( $attachment_id );
 		if ( ! $mime || ! $path || ! wp_attachment_is_image( $attachment_id ) ) {
 			return new WP_Error( 'timu_formats_not_image', __( 'That is not a picture in your Media Library.', 'thisismyurl-image-formats' ) );
+		}
+		$real = file_exists( $path ) ? wp_get_image_mime( $path ) : false;
+		if ( $real && $real !== $mime ) {
+			$mime = $real;
 		}
 		if ( get_post_meta( $attachment_id, self::META_ORIGINAL, true ) ) {
 			return array( 'status' => 'skipped', 'reason' => 'already converted', 'from' => $mime, 'to' => $mime, 'saved' => 0 );
@@ -241,6 +248,9 @@ class Converter {
 	 * @return string A reason code, or an empty string when it is safe to go on.
 	 */
 	private static function unsafe_reason( $attachment_id, $path ) {
+		if ( self::is_animated_png( $path ) ) {
+			return 'animated';
+		}
 		// A picture cropped or turned inside WordPress keeps its untouched original as a "backup size". Changing the picture would delete it.
 		$edited = get_post_meta( $attachment_id, '_wp_attachment_backup_sizes', true );
 		if ( ! empty( $edited ) ) {
@@ -273,6 +283,36 @@ class Converter {
 			}
 		}
 		return '';
+	}
+
+	/**
+	 * Why a picture would be left alone, for the box on its screen. An empty string means it can be changed.
+	 *
+	 * @param int $attachment_id Attachment ID.
+	 * @return string Reason code.
+	 */
+	public static function refusal_reason( $attachment_id ) {
+		$path = get_attached_file( (int) $attachment_id );
+		return $path ? self::unsafe_reason( (int) $attachment_id, $path ) : '';
+	}
+
+	/**
+	 * Is this file an animated PNG? Converting it would keep only the first frame.
+	 *
+	 * @param string $path Absolute path.
+	 * @return bool
+	 */
+	public static function is_animated_png( $path ) {
+		if ( ! is_string( $path ) || ! is_file( $path ) || 'image/png' !== wp_get_image_mime( $path ) ) {
+			return false;
+		}
+		$head = file_get_contents( $path, false, null, 0, 65536 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		if ( false === $head ) {
+			return false;
+		}
+		$actl = strpos( $head, 'acTL' );
+		$idat = strpos( $head, 'IDAT' );
+		return false !== $actl && ( false === $idat || $actl < $idat );
 	}
 
 	/**
@@ -356,10 +396,14 @@ class Converter {
 			'original_image'  => $orig_name,
 			'backup_original' => $orig_stored,
 		);
-		update_post_meta( $attachment_id, self::META_ORIGINAL, array_merge( $record, array( 'state' => 'pending' ) ) );
+		update_post_meta( $attachment_id, self::META_ORIGINAL, array_merge( $record, array( 'state' => 'pending', 'new_file' => wp_basename( $new['path'] ) ) ) );
 
 		// Carry the camera, exposure and date details over: the converted file may not hold them in a form WordPress can read.
-		self::remember( $new['path'], isset( $source_meta['image_meta'] ) && is_array( $source_meta['image_meta'] ) ? $source_meta['image_meta'] : array() );
+		$carry = isset( $source_meta['image_meta'] ) && is_array( $source_meta['image_meta'] ) ? $source_meta['image_meta'] : array();
+		if ( ! empty( $new['rotated'] ) && isset( $carry['orientation'] ) ) {
+			$carry['orientation'] = 1;
+		}
+		self::remember( $new['path'], $carry );
 
 		// Remove the old file and its generated sizes, then point the attachment at the new file.
 		$old_meta = self::meta_for_delete( $attachment_id );
@@ -463,15 +507,54 @@ class Converter {
 
 	/**
 	 * The original file name when it is free, otherwise a unique one. WordPress adds "-1" to names ending in -scaled or -rotated even when
-	 * nothing else has the name, which would break every link to the restored picture.
+	 * nothing else has the name, which would break every link to the restored picture. But a name is only "free" if no other picture's
+	 * files could be written over: WordPress may make a JPEG next to a restored HEIC, so any file in the folder that shares the name, in
+	 * any format, and is not one of this picture's own, makes the name unsafe.
 	 *
-	 * @param string $dir  Folder.
-	 * @param string $base File name.
+	 * @param string   $dir  Folder.
+	 * @param string   $base File name.
+	 * @param string[] $own  Normalised paths of this picture's own current files.
 	 * @return string Absolute path.
 	 */
-	private static function exact_or_unique( $dir, $base ) {
-		$path = trailingslashit( $dir ) . $base;
-		return file_exists( $path ) ? trailingslashit( $dir ) . wp_unique_filename( $dir, $base ) : $path;
+	private static function exact_or_unique( $dir, $base, array $own ) {
+		$path   = trailingslashit( $dir ) . $base;
+		$unique = trailingslashit( $dir ) . wp_unique_filename( $dir, $base );
+		if ( file_exists( $path ) ) {
+			return $unique;
+		}
+		$name  = pathinfo( $base, PATHINFO_FILENAME );
+		$match = '/^' . preg_quote( $name, '/' ) . '(-scaled|-rotated)?(-\d+x\d+)?\.[a-z0-9]+$/i';
+		$files = is_dir( $dir ) ? (array) scandir( $dir ) : array();
+		foreach ( $files as $file ) {
+			if ( 1 === preg_match( $match, $file ) && ! in_array( wp_normalize_path( trailingslashit( $dir ) . $file ), $own, true ) ) {
+				return $unique;
+			}
+		}
+		return $path;
+	}
+
+	/**
+	 * This picture's own files as they are now: the main file, its sizes and the large original.
+	 *
+	 * @param int    $attachment_id Attachment ID.
+	 * @param string $current       Absolute path of the main file.
+	 * @return string[] Normalised paths.
+	 */
+	private static function own_files( $attachment_id, $current ) {
+		$dir  = trailingslashit( dirname( $current ) );
+		$own  = array( wp_normalize_path( $current ) );
+		$meta = wp_get_attachment_metadata( $attachment_id );
+		if ( is_array( $meta ) ) {
+			foreach ( isset( $meta['sizes'] ) && is_array( $meta['sizes'] ) ? $meta['sizes'] : array() as $size ) {
+				if ( ! empty( $size['file'] ) ) {
+					$own[] = wp_normalize_path( $dir . $size['file'] );
+				}
+			}
+			if ( ! empty( $meta['original_image'] ) ) {
+				$own[] = wp_normalize_path( $dir . $meta['original_image'] );
+			}
+		}
+		return $own;
 	}
 
 	/**
@@ -515,7 +598,8 @@ class Converter {
 		$current = get_attached_file( $attachment_id );
 		$dir     = dirname( $current );
 		$base    = wp_basename( $info['file'] );
-		$dest    = self::exact_or_unique( $dir, $base );
+		$own     = self::own_files( $attachment_id, $current );
+		$dest    = self::exact_or_unique( $dir, $base, $own );
 
 		// Put the large original back too, when one was kept.
 		$orig_src  = '';
@@ -525,7 +609,7 @@ class Converter {
 			if ( '' === $orig_src ) {
 				return new WP_Error( 'timu_formats_backup_missing', __( 'The saved copy of the original could not be found.', 'thisismyurl-image-formats' ) );
 			}
-			$orig_dest = self::exact_or_unique( $dir, wp_basename( (string) $info['original_image'] ) );
+			$orig_dest = self::exact_or_unique( $dir, wp_basename( (string) $info['original_image'] ), $own );
 		}
 		$copied = array();
 		foreach ( array( array( $source, $dest ), array( $orig_src, $orig_dest ) ) as $pair ) {
@@ -588,6 +672,9 @@ class Converter {
 	 * @return void
 	 */
 	private static function tidy_backup_folder( $folder ) {
+		if ( ! is_dir( $folder ) ) {
+			return;
+		}
 		$left = array_diff( (array) scandir( $folder ), array( '.', '..', 'index.php' ) );
 		if ( ! $left && 0 === strpos( wp_basename( dirname( $folder ) ), Backup::DIR . '-' ) ) {
 			wp_delete_file( trailingslashit( $folder ) . 'index.php' );

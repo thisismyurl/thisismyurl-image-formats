@@ -236,7 +236,7 @@ class Settings {
 							<span class="timu-ui-label" id="timu-l-nonweb"><?php esc_html_e( 'When I add one', 'thisismyurl-image-formats' ); ?></span>
 							<div role="group" aria-labelledby="timu-l-nonweb">
 								<label><input type="checkbox" name="<?php echo esc_attr( $name ); ?>[convert_nonweb]" value="1" aria-describedby="timu-h-nonweb" <?php checked( 1, (int) $s['convert_nonweb'] ); ?>> <?php esc_html_e( 'Fix it for me (recommended)', 'thisismyurl-image-formats' ); ?></label>
-								<p class="timu-ui-help" id="timu-h-nonweb"><?php esc_html_e( 'This is already turned on. Pictures you added earlier are not touched unless you choose them yourself.', 'thisismyurl-image-formats' ); ?></p>
+								<p class="timu-ui-help" id="timu-h-nonweb"><?php esc_html_e( 'This is turned on to begin with. Pictures you added earlier are not touched unless you choose them yourself.', 'thisismyurl-image-formats' ); ?></p>
 							</div>
 						</div>
 						<details class="timu-ui-more">

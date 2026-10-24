@@ -146,7 +146,7 @@ class Actions {
 	 * @param string $reason Reason code from the converter.
 	 * @return string
 	 */
-	private static function reason( $reason ) {
+	public static function reason( $reason ) {
 		$map = array(
 			'already converted'             => __( 'This picture was already changed.', 'thisismyurl-image-formats' ),
 			'format is left alone'          => __( 'This kind of picture is left exactly as it is.', 'thisismyurl-image-formats' ),
@@ -155,6 +155,7 @@ class Actions {
 			'edited in wordpress'           => __( 'This picture was cropped or turned in WordPress. It is left exactly as it is, so your edits stay safe.', 'thisismyurl-image-formats' ),
 			'extra files'                   => __( 'This picture has extra files that belong with it, so it is left exactly as it is.', 'thisismyurl-image-formats' ),
 			'shared file'                   => __( 'Another picture in your Media Library uses the same file, so it is left exactly as it is.', 'thisismyurl-image-formats' ),
+			'animated'                      => __( 'This picture is animated, so it is left exactly as it is. Changing it would keep only the first frame.', 'thisismyurl-image-formats' ),
 			'type not allowed'              => __( 'Your website does not allow that kind of picture, so this one is left exactly as it is.', 'thisismyurl-image-formats' ),
 		);
 		return isset( $map[ $reason ] ) ? $map[ $reason ] : __( 'Your picture was left exactly as it was.', 'thisismyurl-image-formats' );

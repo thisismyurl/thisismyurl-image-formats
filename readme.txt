@@ -9,7 +9,7 @@ Stable tag: 1.6297
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Changes BMP, TIFF and iPhone (HEIC) pictures into ones websites can show. A safe copy of every original is kept, so you can always put it back.
+Changes BMP, TIFF and iPhone (HEIC) pictures into ones websites can show. By default a safe copy of every original is kept, so you can put it back.
 
 == Description ==
 
@@ -19,8 +19,8 @@ Some picture files cannot be shown on a website at all. BMP, TIFF and the HEIC p
 
 **What it does**
 
-* When you add a BMP, TIFF or iPhone (HEIC) picture to your Media Library, it changes it into a picture that works on a website. BMP and TIFF become PNG, which keeps every detail. HEIC becomes the best kind your website can make. (A TIFF with several pages keeps only its first page.)
-* On any picture's page in your Media Library there is a button to change that picture, and a button to put the original back.
+* When you add a BMP, TIFF or iPhone (HEIC) picture to your Media Library, it changes it into a picture that works on a website. BMP and TIFF become PNG, which keeps the detail (a few unusual colour types can shift slightly). HEIC becomes the best kind your website can make. (A TIFF with several pages keeps only its first page.)
+* On the page of a picture that can be changed there is a button to change it, and a button to put the original back. The page says why when a picture cannot be changed.
 * Links to a changed picture keep working while this plugin is turned on. If the picture was already used in a page or post, the old link is swapped for the new one when the page is shown. Nothing you wrote is edited. This covers the text of pages, posts and widgets (see the questions below).
 * It shows how much space each change saved.
 * If you turn it on, it can also make new JPEG and PNG pictures smaller. This is off to begin with. If the new file would not be smaller, your picture is left exactly as it was.
@@ -35,7 +35,7 @@ You do not need to change any settings. They are already chosen for you. If you 
 
 **Needs your website to be able to make the new kind of picture.** Most websites can. The settings page tells you which kinds yours can make. If your website cannot make a picture, nothing is changed. When you press the button, a message says so in plain words. When a picture is added, it is simply added as it was.
 
-**Pictures it leaves alone.** To keep your work safe, it will not change a picture you have cropped or turned inside WordPress, a picture with extra files that belong with it, or a file that two pictures in your Library share. The button explains why.
+**Pictures it leaves alone.** To keep your work safe, it will not change a picture you have cropped or turned inside WordPress, a picture with extra files that belong with it, a file that two pictures in your Library share, or an animated PNG (changing it would keep only the first frame). The page explains why.
 
 **Works well with Image Support.** Image Support, from the same author, shows you which pictures need a description or are far too large. It is not needed for this plugin to work.
 
@@ -58,6 +58,10 @@ No. A copy is saved in a safe folder first, and you can put it back with one but
 = Where are my originals kept? =
 
 In a folder inside your uploads folder, called "timu-formats-backups" followed by a random ending. The folder is usually closed to visitors on Apache and IIS servers, and on other servers its random name is what keeps it private. Treat it like your pictures: a saved original, such as an iPhone picture, can still hold details like where it was taken. If you delete this plugin from the Plugins screen, the folder is left in place on purpose, so your originals are not lost. You can delete it yourself when you are sure you do not need them.
+
+= What does putting the original back do? =
+
+It brings back the exact file you added, with its old file name, and points links made since the change back at it. Crops made after the change are not kept. For an iPhone (HEIC) picture, WordPress may also make its own JPEG copy for showing on the website; your original file is kept as well.
 
 = Will my picture's title, caption and description change? =
 
@@ -89,7 +93,7 @@ No. Everything happens on your own website, using the picture tools your website
 
 = What does it store? =
 
-A settings record, a short random word that names the safe folder, a list of old and new picture addresses (used to keep links working), a small note with each picture it has changed (what it was, how much space was saved, where the saved original is, and the picture's earlier addresses), and the saved originals themselves. Deleting the plugin removes the settings, the random word and the list. The notes and saved originals are kept so an original can still be found. While a picture is being changed, a short-lived marker is kept so it cannot be changed twice at once.
+A settings record, a short random word that names the safe folder, a list of old and new picture addresses (used to keep links working), a small note with each picture it has changed (what it was, how much space was saved, where the saved original is, and the picture's earlier addresses), and the saved originals themselves. Deleting the plugin removes the settings, the random word and the list. The notes and saved originals are kept so an original can still be found. While a picture is being changed, a short-lived marker is kept so it cannot be changed twice at once, and one-time messages are kept for a few minutes.
 
 = I know how to use the command line. Is there one? =
 
@@ -113,7 +117,7 @@ Yes. The `timu_formats_quality`, `timu_formats_target_mime` and `timu_formats_co
 * Changes BMP, TIFF and iPhone (HEIC) pictures into pictures websites can show, when you add them or when you press a button on a picture's page.
 * A safe copy of every original is kept, and can be put back with one button.
 * Links to a changed picture keep working, without editing your pages.
-* Optionally makes new JPEG and PNG pictures smaller.
+* Optionally makes new JPEG and PNG pictures smaller (not animated PNGs).
 * Command line support: `wp timu-formats status`, `convert` and `restore`.
 
 == Upgrade Notice ==

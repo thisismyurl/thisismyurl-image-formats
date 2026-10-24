@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Thisismyurl Image Formats
  * Plugin URI:        https://plugins.thisismyurl.com/thisismyurl-image-formats/
- * Description:       Changes pictures that websites cannot show, or that take up too much space, into pictures that work well. A safe copy of every original is kept, so you can always put it back.
+ * Description:       Changes pictures that websites cannot show, or that take up too much space, into pictures that work well. By default a safe copy of every original is kept, so you can put it back.
  * Version:           1.6297
  * Requires at least: 6.7
  * Requires PHP:      7.4

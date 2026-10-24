@@ -49,8 +49,10 @@ class Upload {
 		if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
 			$route = isset( $GLOBALS['wp']->query_vars['rest_route'] ) ? (string) $GLOBALS['wp']->query_vars['rest_route'] : '';
 			// With in-browser picture processing the browser makes the sizes and sends them separately, so the file is left as it is.
-			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- only reads a flag; core checks the request.
-			$browser_sizes = isset( $_REQUEST['generate_sub_sizes'] ) && in_array( strtolower( (string) wp_unslash( $_REQUEST['generate_sub_sizes'] ) ), array( 'false', '0' ), true );
+			// phpcs:disable WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- only reads a flag, compared to fixed words; core checks the request.
+			$flag          = isset( $_REQUEST['generate_sub_sizes'] ) ? wp_unslash( $_REQUEST['generate_sub_sizes'] ) : '';
+			// phpcs:enable
+			$browser_sizes = is_string( $flag ) && in_array( strtolower( $flag ), array( 'false', '0' ), true );
 			return ! $browser_sizes && 1 === preg_match( '#^/wp/v2/media/?$#', $route );
 		}
 		global $pagenow;
@@ -74,6 +76,9 @@ class Upload {
 		// The block editor's upload reaches this point before WordPress has loaded its picture functions.
 		require_once ABSPATH . 'wp-admin/includes/image.php';
 		$source = strtolower( $upload['type'] );
+		if ( 'image/png' === $source && Converter::is_animated_png( $upload['file'] ) ) {
+			return $upload; // Converting would keep only the first frame.
+		}
 
 		/**
 		 * Return false to leave this upload exactly as it is.
@@ -101,6 +106,9 @@ class Upload {
 		}
 
 		$image_meta = wp_read_image_metadata( $upload['file'] );
+		if ( ! empty( $new['rotated'] ) && is_array( $image_meta ) && isset( $image_meta['orientation'] ) ) {
+			$image_meta['orientation'] = 1; // The pixels were turned upright, so the new file must not be turned again.
+		}
 		Converter::remember( $new['path'], is_array( $image_meta ) ? $image_meta : array() );
 
 		$mode   = Backup::mode();

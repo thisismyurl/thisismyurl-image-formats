@@ -110,6 +110,19 @@ class Plugin {
 		$info = get_post_meta( $post->ID, Converter::META_ORIGINAL, true );
 		echo '<div class="timu-ui timu-ui--bare">';
 
+		if ( is_array( $info ) && isset( $info['state'] ) && 'pending' === $info['state'] ) {
+			echo '<p>' . Ui::pill( 'note', __( 'A change did not finish', 'thisismyurl-image-formats' ) ) . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput -- Ui::pill escapes.
+			if ( isset( $info['backup'] ) && 0 === strpos( (string) $info['backup'], 'local:' ) ) {
+				echo '<p>' . esc_html__( 'This picture was being changed when something stopped. Your original is saved safely. Put it back, and then you can try again.', 'thisismyurl-image-formats' ) . '</p>';
+				Actions::queue_form( Actions::RESTORE, $post->ID );
+				echo '<p><button type="submit" class="button" form="' . esc_attr( Actions::form_id( Actions::RESTORE, $post->ID ) ) . '">' . esc_html__( 'Put the original back', 'thisismyurl-image-formats' ) . '</button></p>';
+			} else {
+				echo '<p>' . esc_html__( 'This picture was being changed when something stopped, and no copy of the original was kept. Please check that it still shows correctly.', 'thisismyurl-image-formats' ) . '</p>';
+			}
+			echo '</div>';
+			return;
+		}
+
 		if ( is_array( $info ) ) {
 			$saved = (int) get_post_meta( $post->ID, Converter::META_SAVINGS, true );
 			echo '<p>' . Ui::pill( 'good', sprintf( /* translators: 1: old picture type, 2: new picture type */ __( 'Changed from %1$s to %2$s', 'thisismyurl-image-formats' ), strtoupper( str_replace( 'image/', '', (string) $info['mime'] ) ), strtoupper( str_replace( 'image/', '', (string) $info['to'] ) ) ) ) . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput -- Ui::pill escapes.
@@ -127,10 +140,17 @@ class Plugin {
 				echo '<p>' . esc_html__( 'No copy of the original was kept, so it cannot be put back.', 'thisismyurl-image-formats' ) . '</p>';
 			}
 		} else {
-			$mime   = (string) get_post_mime_type( $post->ID );
+			$file   = get_attached_file( $post->ID );
+			$real   = $file ? wp_get_image_mime( $file ) : false;
+			$mime   = $real ? (string) $real : (string) get_post_mime_type( $post->ID );
 			$target = in_array( $mime, array_keys( Capabilities::source_formats() ), true ) ? Policy::target_for( $mime, 'manual' ) : '';
 			if ( '' === $target ) {
 				echo '<p>' . esc_html__( 'This picture is already a good kind for a website. Nothing needs changing.', 'thisismyurl-image-formats' ) . '</p></div>';
+				return;
+			}
+			$why = Converter::refusal_reason( $post->ID );
+			if ( '' !== $why ) {
+				echo '<p>' . esc_html( Actions::reason( $why ) ) . '</p></div>';
 				return;
 			}
 			$nonweb = in_array( $mime, Policy::NON_WEB, true );

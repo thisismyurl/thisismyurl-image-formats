@@ -70,7 +70,45 @@ class Links {
 		if ( ! $map ) {
 			return $content;
 		}
-		return strtr( $content, $map );
+		$use = array();
+		foreach ( $map as $old => $new ) {
+			// An old address that now has a real file behind it belongs to some other picture. Leave it alone.
+			$http_old = 'http' . substr( $old, 5 );
+			$has_s    = false !== strpos( $content, $old );
+			$has_p    = false !== strpos( $content, $http_old );
+			if ( ( $has_s || $has_p ) && self::is_live( $old ) ) {
+				continue;
+			}
+			if ( $has_s ) {
+				$use[ $old ] = $new;
+			}
+			if ( $has_p ) {
+				$use[ $http_old ] = 'http' . substr( $new, 5 );
+			}
+		}
+		return $use ? strtr( $content, $use ) : $content;
+	}
+
+	/**
+	 * Is there a real file at this address in the uploads folder right now?
+	 *
+	 * @param string $url Address.
+	 * @return bool
+	 */
+	private static function is_live( $url ) {
+		static $seen = array();
+		if ( isset( $seen[ $url ] ) ) {
+			return $seen[ $url ];
+		}
+		$uploads = wp_get_upload_dir();
+		$base    = preg_replace( '#^https?:#', '', (string) $uploads['baseurl'] );
+		$rel     = preg_replace( '#^https?:#', '', $url );
+		if ( 0 !== strpos( $rel, $base ) ) {
+			$seen[ $url ] = false;
+			return false;
+		}
+		$seen[ $url ] = is_file( $uploads['basedir'] . substr( $rel, strlen( $base ) ) );
+		return $seen[ $url ];
 	}
 
 	/**
@@ -141,9 +179,8 @@ class Links {
 					if ( $entry['u'] === $target ) {
 						continue;
 					}
-					// Both web address styles, so a post written before the site moved to https still works.
+					// Kept once, as https. The plain http form is worked out when a page is shown, so a post written before the site moved to https still works.
 					$map[ set_url_scheme( $entry['u'], 'https' ) ] = set_url_scheme( $target, 'https' );
-					$map[ set_url_scheme( $entry['u'], 'http' ) ]  = set_url_scheme( $target, 'http' );
 				}
 			}
 			++$page;
