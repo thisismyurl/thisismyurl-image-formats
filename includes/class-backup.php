@@ -29,7 +29,7 @@ class Backup {
 	}
 
 	/**
-	 * The folder name, with its random ending. Made once, by add_option(), which cannot be beaten by a second request.
+	 * The folder name, with its random ending. If two requests ever made it at once, each record still holds the full folder name, so nothing is lost.
 	 *
 	 * @return string
 	 */
@@ -64,8 +64,8 @@ class Backup {
 			'web.config' => "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<configuration><system.webServer><authorization><deny users=\"*\" /></authorization></system.webServer></configuration>\n",
 		);
 		foreach ( $guards as $file => $body ) {
-			if ( ! file_exists( $dir . $file ) ) {
-				file_put_contents( $dir . $file, $body ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+			if ( ! file_exists( $dir . $file ) && false === file_put_contents( $dir . $file, $body ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+				return ''; // If the folder cannot be guarded, nothing is stored in it.
 			}
 		}
 		return $dir;
@@ -85,6 +85,9 @@ class Backup {
 		}
 		$sub = $dir . sanitize_file_name( (string) $key ) . '/';
 		if ( ! wp_mkdir_p( $sub ) ) {
+			return false;
+		}
+		if ( ! file_exists( $sub . 'index.php' ) && false === file_put_contents( $sub . 'index.php', "<?php\n// Silence is golden.\n" ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 			return false;
 		}
 		$name = wp_unique_filename( $sub, wp_basename( $path ) );

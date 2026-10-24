@@ -8,6 +8,7 @@ First public release.
 - Keeps a safe copy of every original, and puts it back with one button.
 - Keeps links to a changed picture working, while the plugin is active, by swapping the old address for the new one when a page is shown. Stored content is never edited.
 - Leaves alone pictures that were cropped or turned in WordPress, pictures with extra files, and files shared by two Library entries.
+- Writes the way back before anything is removed, restores the original file name exactly, and verifies copies before deleting.
 - Only converts pictures added through the Media Library. Other plugins' uploads and WordPress's own background sideloads are not touched.
 - Optionally makes new JPEG and PNG pictures smaller. Off by default; a picture that would not get smaller is left as it was.
 - Settings on Media > Image Formats. Everything is already chosen.

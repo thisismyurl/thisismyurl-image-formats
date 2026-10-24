@@ -11,11 +11,11 @@ Some picture files cannot be shown in a web browser at all, and others are far b
 - **Fixes pictures when you add them.** BMP and TIFF become PNG, which keeps every detail. HEIC becomes the best kind your website can make (AVIF, WebP or JPEG).
 - **One button on any picture.** "Fix this picture" changes it. "Put the original back" undoes it. Nothing happens until you press.
 - **Originals are kept.** A copy is saved in a folder in uploads (with a random name, closed to visitors on servers that honour `.htaccess`) before anything changes.
-- **Links keep working while the plugin is active.** If a changed picture was already used in a post, the old address is swapped for the new one when the page is shown (post content and widget text; not menus, theme settings or page builders). Stored content is never edited, so restoring an original makes the old address work again. Turn the plugin off and those swaps stop, so put originals back first.
+- **Links keep working while the plugin is active.** If a changed picture was already used in a post, the old address is swapped for the new one when the page is shown (post content and widget text; not menus, theme settings or page builders). Stored content is never edited, so restoring an original makes the old address work again, and addresses made since the change are pointed back at it. Turn the plugin off and those swaps stop, so put originals back first. The editor still shows the raw addresses.
 - **Only smaller, only when asked.** New JPEG and PNG pictures can optionally be made smaller (off by default). A result that is not smaller is thrown away and the original left alone.
 - **Details survive.** Title, caption and description are not touched, and camera details are carried into the Media Library details. A large original that WordPress kept next to a shrunk copy is saved and restored too.
 - **Leaves risky pictures alone.** Pictures cropped or turned in WordPress, pictures with extra files, and files shared by two Library entries are not changed.
-- **Only Media Library uploads.** The upload hook acts on the Media Library uploader, the block editor and the REST media route. It ignores other plugins' uploads and WordPress's own background sideloads.
+- **Only Media Library uploads.** The upload hook acts on the Media Library uploader, the block editor and the REST media route. It ignores other plugins' uploads, WordPress's own background sideloads, and block-editor uploads where the browser makes the sizes.
 - **No outside connections.** Nothing is sent anywhere.
 
 Settings are on `Media > Image Formats`. Everything is already chosen, and the page says so first.

@@ -15,7 +15,7 @@ Changes BMP, TIFF and iPhone (HEIC) pictures into ones websites can show. A safe
 
 Some picture files cannot be shown on a website at all. BMP, TIFF and the HEIC pictures from an iPhone are the common ones. Others are simply much bigger than they need to be. This plugin changes those pictures into kinds that work well on a website.
 
-**It is safe to try.** Before any picture is changed, a copy of the original is saved in a safe folder on your website. You can put the original back whenever you like, with one button. Nothing is sent over the internet, and nothing is changed until you add a picture or press a button.
+**It is safe to try.** Before any picture is changed, a copy of the original is saved in a safe folder on your website (unless you turn that off in the settings). You can put the original back whenever you like, with one button. Nothing is sent over the internet, and nothing is changed until you add a picture or press a button.
 
 **What it does**
 
@@ -41,7 +41,7 @@ You do not need to change any settings. They are already chosen for you. If you 
 
 = Not included yet =
 
-Changing many pictures at once from the dashboard, and safe handling of SVG pictures, are planned for a later version. Many pictures at once is possible today with the command line (see the questions below). Pictures added by other plugins, by WordPress's own background steps, or by the command line are not changed automatically.
+Changing many pictures at once from the dashboard, and safe handling of SVG pictures, are planned for a later version. Many pictures at once is possible today with the command line (see the questions below). Pictures added by other plugins, by WordPress's own background steps, or by the command line are not changed automatically. In the block editor on newer WordPress versions, when the browser does the picture work itself, the picture is also left as it was. In all of these cases you can use the button on the picture's page.
 
 == Installation ==
 
@@ -53,11 +53,11 @@ Changing many pictures at once from the dashboard, and safe handling of SVG pict
 
 = Will I lose my original pictures? =
 
-No. A copy is saved in a safe folder first, and you can put it back with one button on the picture's page. The copy is only lost if you turn the "Keep a copy" setting to "No" (which we do not suggest) or delete the folder it is kept in.
+No. A copy is saved in a safe folder first, and you can put it back with one button on the picture's page. The copy is only lost if you turn the "Keep a copy" setting to "No" before you change a picture (which we do not suggest) or delete the folder it is kept in. Turning the setting off later does not delete copies that are already saved. When it is off, the button says plainly that the original will be deleted.
 
 = Where are my originals kept? =
 
-In a folder inside your uploads folder, called "timu-formats-backups" followed by a random ending. The folder is closed to visitors on Apache and IIS servers, and on other servers its random name keeps it private. Treat it like your pictures: a saved original, such as an iPhone picture, can still hold details like where it was taken. If you delete this plugin from the Plugins screen, the folder is left in place on purpose, so your originals are not lost. You can delete it yourself when you are sure you do not need them.
+In a folder inside your uploads folder, called "timu-formats-backups" followed by a random ending. The folder is usually closed to visitors on Apache and IIS servers, and on other servers its random name is what keeps it private. Treat it like your pictures: a saved original, such as an iPhone picture, can still hold details like where it was taken. If you delete this plugin from the Plugins screen, the folder is left in place on purpose, so your originals are not lost. You can delete it yourself when you are sure you do not need them.
 
 = Will my picture's title, caption and description change? =
 
@@ -65,7 +65,7 @@ No. Those stay exactly as they are. Camera details are kept in the Media Library
 
 = Will pictures already used in my pages stop showing? =
 
-Not while this plugin is turned on. When a picture is changed, its web address changes. The plugin swaps the old address for the new one when the page is shown, in the text of pages, posts and widgets. The pages themselves are never edited, so putting the original back makes the old address work again. Links in other places, such as menus, theme settings and page builders, are not swapped.
+Not while this plugin is turned on. When a picture is changed, its web address changes. The plugin swaps the old address for the new one when the page is shown, in the text of pages, posts and widgets. The pages themselves are never edited, so putting the original back makes the old address work again, and links made since the change are pointed back at the original. Links in other places, such as menus, theme settings and page builders, are not swapped. In the editor, a changed picture that is already in a page may show as missing, but the page you visit is fine.
 
 = What if I turn the plugin off? =
 
@@ -89,7 +89,7 @@ No. Everything happens on your own website, using the picture tools your website
 
 = What does it store? =
 
-A settings record, a short random word that names the safe folder, a list of old and new picture addresses (used to keep links working), a small note with each picture it has changed (what it was, how much space was saved, and where the saved original is), and the saved originals themselves. Deleting the plugin removes the settings, the random word and the list. The notes and saved originals are kept so an original can still be found.
+A settings record, a short random word that names the safe folder, a list of old and new picture addresses (used to keep links working), a small note with each picture it has changed (what it was, how much space was saved, where the saved original is, and the picture's earlier addresses), and the saved originals themselves. Deleting the plugin removes the settings, the random word and the list. The notes and saved originals are kept so an original can still be found. While a picture is being changed, a short-lived marker is kept so it cannot be changed twice at once.
 
 = I know how to use the command line. Is there one? =
 

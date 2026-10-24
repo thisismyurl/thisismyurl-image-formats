@@ -29,6 +29,20 @@ class Links {
 	private static $map = null;
 
 	/**
+	 * While a long run is going (WP-CLI --all), the list is rebuilt once at the end instead of after every picture.
+	 *
+	 * @var bool
+	 */
+	private static $deferred = false;
+
+	/**
+	 * A rebuild was asked for while deferred.
+	 *
+	 * @var bool
+	 */
+	private static $dirty = false;
+
+	/**
 	 * Register hooks.
 	 *
 	 * @return void
@@ -73,41 +87,67 @@ class Links {
 	}
 
 	/**
+	 * Hold back rebuilding the list, or release it and rebuild once if anything changed meanwhile.
+	 *
+	 * @param bool $on True to hold back, false to release.
+	 * @return void
+	 */
+	public static function defer( $on ) {
+		self::$deferred = (bool) $on;
+		if ( ! $on && self::$dirty ) {
+			self::$dirty = false;
+			self::rebuild();
+		}
+	}
+
+	/**
 	 * Work out the list from the pictures this plugin has changed, and keep it in one option that is not loaded on every page.
 	 *
 	 * @return array<string,string>
 	 */
 	public static function rebuild() {
-		$map = array();
-		$ids = get_posts(
-			array(
-				'post_type'      => 'attachment',
-				'post_status'    => 'inherit',
-				'meta_key'       => Converter::META_OLD_URLS, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- only pictures this plugin changed.
-				'fields'         => 'ids',
-				'posts_per_page' => 1000,
-				'orderby'        => 'ID',
-				'order'          => 'ASC',
-				'no_found_rows'  => true,
-			)
-		);
-		foreach ( $ids as $id ) {
-			$old = get_post_meta( $id, Converter::META_OLD_URLS, true );
-			$new = Converter::attachment_urls( $id );
-			if ( ! is_array( $old ) || empty( $new['full'] ) ) {
-				continue;
-			}
-			foreach ( $old as $size => $url ) {
-				// Each old size points at the same size of the new picture, or at the full one when there is no match.
-				$target = isset( $new[ $size ] ) ? $new[ $size ] : $new['full'];
-				if ( ! is_string( $url ) || $url === $target ) {
+		if ( self::$deferred ) {
+			self::$dirty = true;
+			return is_array( self::$map ) ? self::$map : array();
+		}
+		$map  = array();
+		$page = 1;
+		do {
+			$ids = get_posts(
+				array(
+					'post_type'      => 'attachment',
+					'post_status'    => array( 'inherit', 'private', 'publish' ),
+					'meta_key'       => Converter::META_OLD_URLS, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- only pictures this plugin changed.
+					'fields'         => 'ids',
+					'posts_per_page' => 500,
+					'paged'          => $page,
+					'orderby'        => 'ID',
+					'order'          => 'ASC',
+					'no_found_rows'  => true,
+				)
+			);
+			foreach ( $ids as $id ) {
+				$old = get_post_meta( $id, Converter::META_OLD_URLS, true );
+				$new = Converter::attachment_urls( $id );
+				if ( ! is_array( $old ) || empty( $new['full'] ) ) {
 					continue;
 				}
-				// Both web address styles, so a post written before the site moved to https still works.
-				$map[ set_url_scheme( $url, 'https' ) ] = set_url_scheme( $target, 'https' );
-				$map[ set_url_scheme( $url, 'http' ) ]  = set_url_scheme( $target, 'http' );
+				foreach ( $old as $entry ) {
+					if ( ! is_array( $entry ) || ! isset( $entry['s'], $entry['u'] ) ) {
+						continue;
+					}
+					// Each old size points at the same size of the picture as it is now, or at the full one when there is no match.
+					$target = isset( $new[ $entry['s'] ] ) ? $new[ $entry['s'] ] : $new['full'];
+					if ( $entry['u'] === $target ) {
+						continue;
+					}
+					// Both web address styles, so a post written before the site moved to https still works.
+					$map[ set_url_scheme( $entry['u'], 'https' ) ] = set_url_scheme( $target, 'https' );
+					$map[ set_url_scheme( $entry['u'], 'http' ) ]  = set_url_scheme( $target, 'http' );
+				}
 			}
-		}
+			++$page;
+		} while ( 500 === count( $ids ) );
 		// Longest first, so a sized address is never half-replaced by a shorter one.
 		uksort(
 			$map,

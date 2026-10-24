@@ -11,7 +11,7 @@ defined( 'ABSPATH' ) || exit;
 
 /**
  * Hooks `wp_handle_upload`. The converted file replaces the upload before the attachment is created, so the Media Library only ever sees the
- * new format. Only pictures added through the Media Library (the uploader, the block editor and the REST media route) are touched. Other
+ * new format. Only pictures added through the Media Library (the uploader, and the block editor when the server makes the sizes) are touched. Other
  * plugins' uploads and WordPress's own background "sideload" files are left exactly alone.
  */
 class Upload {
@@ -48,7 +48,10 @@ class Upload {
 		}
 		if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
 			$route = isset( $GLOBALS['wp']->query_vars['rest_route'] ) ? (string) $GLOBALS['wp']->query_vars['rest_route'] : '';
-			return 1 === preg_match( '#^/wp/v2/media/?$#', $route );
+			// With in-browser picture processing the browser makes the sizes and sends them separately, so the file is left as it is.
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- only reads a flag; core checks the request.
+			$browser_sizes = isset( $_REQUEST['generate_sub_sizes'] ) && in_array( strtolower( (string) wp_unslash( $_REQUEST['generate_sub_sizes'] ) ), array( 'false', '0' ), true );
+			return ! $browser_sizes && 1 === preg_match( '#^/wp/v2/media/?$#', $route );
 		}
 		global $pagenow;
 		return in_array( $pagenow, array( 'async-upload.php', 'media-new.php' ), true );
@@ -68,6 +71,8 @@ class Upload {
 		if ( ! is_array( $upload ) || ! empty( $upload['error'] ) || empty( $upload['file'] ) || empty( $upload['type'] ) ) {
 			return $upload;
 		}
+		// The block editor's upload reaches this point before WordPress has loaded its picture functions.
+		require_once ABSPATH . 'wp-admin/includes/image.php';
 		$source = strtolower( $upload['type'] );
 
 		/**
@@ -81,7 +86,7 @@ class Upload {
 			return $upload;
 		}
 		$target = Policy::target_for( $source, 'upload' );
-		if ( '' === $target ) {
+		if ( '' === $target || ! in_array( $target, array_values( get_allowed_mime_types() ), true ) ) {
 			return $upload;
 		}
 

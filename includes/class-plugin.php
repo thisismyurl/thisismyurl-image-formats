@@ -22,6 +22,7 @@ class Plugin {
 	public static function boot() {
 		Upload::register();
 		Links::register();
+		add_filter( 'wp_generate_attachment_metadata', array( Converter::class, 'release' ), 99, 2 );
 		if ( is_admin() ) {
 			Actions::register();
 		}
@@ -135,8 +136,12 @@ class Plugin {
 			$nonweb = in_array( $mime, Policy::NON_WEB, true );
 			echo '<p>' . ( $nonweb ? Ui::pill( 'note', __( 'Browsers often cannot show this', 'thisismyurl-image-formats' ) ) : Ui::pill( 'info', __( 'Can be made smaller', 'thisismyurl-image-formats' ) ) ) . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput -- Ui::pill escapes.
 			echo '<p>' . esc_html( $nonweb ? __( 'You can change it into a kind that works on every website.', 'thisismyurl-image-formats' ) : __( 'You can make it take up less space, so your website loads faster.', 'thisismyurl-image-formats' ) ) . '</p>';
-			echo '<p>' . esc_html__( 'A safe copy of your original is saved first, and you can put it back any time. Nothing happens until you press the button.', 'thisismyurl-image-formats' ) . '</p>';
-			echo '<p class="description">' . esc_html__( 'If this picture is already in your pages, those pages keep working while this plugin is turned on.', 'thisismyurl-image-formats' ) . '</p>';
+			if ( 'none' === Backup::mode() ) {
+				echo '<p><strong>' . esc_html__( 'Saving copies is turned off in the settings. If you press the button, the original is deleted for good and cannot be put back.', 'thisismyurl-image-formats' ) . '</strong></p>';
+			} else {
+				echo '<p>' . esc_html__( 'A safe copy of your original is saved first, and you can put it back any time. Nothing happens until you press the button.', 'thisismyurl-image-formats' ) . '</p>';
+			}
+			echo '<p class="description">' . esc_html__( 'If this picture is already in your pages, those pages keep working while this plugin is turned on. In the editor it may show as missing, but the page itself is fine.', 'thisismyurl-image-formats' ) . '</p>';
 			Actions::queue_form( Actions::CONVERT, $post->ID );
 			echo '<p><button type="submit" class="button button-primary" form="' . esc_attr( Actions::form_id( Actions::CONVERT, $post->ID ) ) . '">' . esc_html( $nonweb ? __( 'Fix this picture', 'thisismyurl-image-formats' ) : __( 'Make this picture smaller', 'thisismyurl-image-formats' ) ) . '</button></p>';
 		}

@@ -50,12 +50,27 @@ class Converter {
 	public static function registry_match( $filename ) {
 		$norm = wp_normalize_path( (string) $filename );
 		foreach ( self::$registry as $key => $data ) {
-			// The file itself, or one WordPress derived from it (name-scaled.png, name-150x150.png), never just a longer name.
-			if ( $norm === $key || 0 === strpos( $norm, $key . '.' ) || 0 === strpos( $norm, $key . '-' ) ) {
+			// The file itself, or one WordPress derived from it (name-scaled.png, name-rotated.png, name-150x150.png). Never just a longer name.
+			if ( 1 === preg_match( '/^' . preg_quote( $key, '/' ) . '(-scaled|-rotated)?(-\d+x\d+)?\.[a-z0-9]+$/i', $norm ) ) {
 				return $data;
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Let go of a picture's remembered details once WordPress has finished building its metadata (filter: wp_generate_attachment_metadata).
+	 *
+	 * @param array $metadata      Attachment metadata, passed through untouched.
+	 * @param int   $attachment_id Attachment ID.
+	 * @return array
+	 */
+	public static function release( $metadata, $attachment_id ) {
+		$file = get_attached_file( (int) $attachment_id );
+		if ( $file ) {
+			unset( self::$registry[ self::registry_key( $file ) ] );
+		}
+		return $metadata;
 	}
 
 	/**
@@ -161,24 +176,61 @@ class Converter {
 		if ( ! Capabilities::can_write( $target ) ) {
 			return new WP_Error( 'timu_formats_unsupported', __( 'This website cannot make that kind of picture.', 'thisismyurl-image-formats' ) );
 		}
+		// On a network, the site's allowed file types still apply to what this plugin makes.
+		if ( ! in_array( $target, array_values( get_allowed_mime_types() ), true ) ) {
+			return array( 'status' => 'skipped', 'reason' => 'type not allowed', 'from' => $mime, 'to' => $mime, 'saved' => 0 );
+		}
 		$old_size = file_exists( $path ) ? (int) filesize( $path ) : 0;
 		if ( $dry_run ) {
 			return array( 'status' => 'would-convert', 'from' => $mime, 'to' => $target, 'saved' => 0, 'old_size' => $old_size );
 		}
 
-		// add_option() fails when the option already exists, so two requests cannot both take the lock. A lock older than five minutes is stale.
-		$lock = 'timu_formats_lock_' . $attachment_id;
-		if ( ! add_option( $lock, time(), '', false ) ) {
-			if ( time() - (int) get_option( $lock ) < 5 * MINUTE_IN_SECONDS ) {
-				return new WP_Error( 'timu_formats_locked', __( 'This picture is being changed right now. Please wait a minute and try again.', 'thisismyurl-image-formats' ) );
-			}
-			update_option( $lock, time(), false );
+		if ( ! self::take_lock( $attachment_id ) ) {
+			return new WP_Error( 'timu_formats_locked', __( 'This picture is being changed right now. Please wait a minute and try again.', 'thisismyurl-image-formats' ) );
 		}
 		try {
 			return self::convert_attachment_locked( $attachment_id, $mime, $path, $target, $context, $old_size );
 		} finally {
-			delete_option( $lock );
+			self::release_lock( $attachment_id );
 		}
+	}
+
+	/**
+	 * Take the per-picture lock. The row is inserted with INSERT IGNORE, so only one request can create it. A lock older than five minutes is
+	 * stale and is taken over with a compare-and-set.
+	 *
+	 * @param int $attachment_id Attachment ID.
+	 * @return bool
+	 */
+	private static function take_lock( $attachment_id ) {
+		global $wpdb;
+		$name = 'timu_formats_lock_' . (int) $attachment_id;
+		$now  = (string) time();
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery -- a lock must be taken in one atomic step, which the Options API cannot do.
+		$got = $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", $name, $now ) );
+		if ( 1 === (int) $got ) {
+			return true;
+		}
+		$held = (string) $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $name ) );
+		if ( '' !== $held && (int) $now - (int) $held >= 5 * MINUTE_IN_SECONDS ) {
+			$took = $wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s", $now, $name, $held ) );
+			return 1 === (int) $took;
+		}
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery
+		return false;
+	}
+
+	/**
+	 * Let go of the per-picture lock.
+	 *
+	 * @param int $attachment_id Attachment ID.
+	 * @return void
+	 */
+	private static function release_lock( $attachment_id ) {
+		global $wpdb;
+		$name = 'timu_formats_lock_' . (int) $attachment_id;
+		$wpdb->delete( $wpdb->options, array( 'option_name' => $name ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		wp_cache_delete( $name, 'options' );
 	}
 
 	/**
@@ -208,7 +260,7 @@ class Converter {
 			$others = get_posts(
 				array(
 					'post_type'      => 'attachment',
-					'post_status'    => 'any',
+					'post_status'    => array( 'inherit', 'private', 'publish', 'trash' ),
 					'meta_key'       => '_wp_attached_file', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- a single, bounded lookup.
 					'meta_value'     => $relative, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 					'fields'         => 'ids',
@@ -263,8 +315,8 @@ class Converter {
 			return array( 'status' => 'skipped', 'reason' => 'converted file was not smaller', 'from' => $mime, 'to' => $mime, 'saved' => 0 );
 		}
 
-		// Remember every URL the old image answered to, so references to it can be updated.
-		$old_urls = self::attachment_urls( $attachment_id );
+		// Remember every address the old picture answered to, so links to it keep working. Earlier addresses (from a change that was undone) stay.
+		$old_urls = self::merge_entries( self::url_entries( $attachment_id ), get_post_meta( $attachment_id, self::META_OLD_URLS, true ) );
 		$uploads  = wp_get_upload_dir();
 		$rel_old  = ltrim( str_replace( trailingslashit( $uploads['basedir'] ), '', $path ), '/' );
 
@@ -292,6 +344,20 @@ class Converter {
 			$orig_stored = 'local:' . $kept_orig;
 		}
 
+		// Write the way back down BEFORE anything is removed, so even an interruption part-way leaves a working "put the original back".
+		$record = array(
+			'file'            => $rel_old,
+			'mime'            => $mime,
+			'size'            => $old_size,
+			'backup'          => $stored,
+			'to'              => $target,
+			'context'         => $context,
+			'converted'       => time(),
+			'original_image'  => $orig_name,
+			'backup_original' => $orig_stored,
+		);
+		update_post_meta( $attachment_id, self::META_ORIGINAL, array_merge( $record, array( 'state' => 'pending' ) ) );
+
 		// Carry the camera, exposure and date details over: the converted file may not hold them in a form WordPress can read.
 		self::remember( $new['path'], isset( $source_meta['image_meta'] ) && is_array( $source_meta['image_meta'] ) ? $source_meta['image_meta'] : array() );
 
@@ -307,21 +373,7 @@ class Converter {
 		}
 
 		$saved = $old_size - $new['size'];
-		update_post_meta(
-			$attachment_id,
-			self::META_ORIGINAL,
-			array(
-				'file'      => $rel_old,
-				'mime'      => $mime,
-				'size'      => $old_size,
-				'backup'    => $stored,
-				'to'        => $target,
-				'context'   => $context,
-				'converted' => time(),
-				'original_image' => $orig_name,
-				'backup_original' => $orig_stored,
-			)
-		);
+		update_post_meta( $attachment_id, self::META_ORIGINAL, $record );
 		update_post_meta( $attachment_id, self::META_SAVINGS, $saved );
 		update_post_meta( $attachment_id, self::META_OLD_URLS, $old_urls );
 
@@ -353,7 +405,7 @@ class Converter {
 	}
 
 	/**
-	 * Every URL an attachment currently answers to, by size name: "full" and each generated size.
+	 * Every address an attachment currently answers to, by size name: "full" and each generated size.
 	 *
 	 * @param int $attachment_id Attachment ID.
 	 * @return array<string,string>
@@ -377,6 +429,52 @@ class Converter {
 	}
 
 	/**
+	 * The same addresses as a list of size and address pairs, the shape kept in the picture's note.
+	 *
+	 * @param int $attachment_id Attachment ID.
+	 * @return array<int,array{s:string,u:string}>
+	 */
+	private static function url_entries( $attachment_id ) {
+		$out = array();
+		foreach ( self::attachment_urls( $attachment_id ) as $size => $url ) {
+			$out[] = array( 's' => (string) $size, 'u' => $url );
+		}
+		return $out;
+	}
+
+	/**
+	 * Join two lists of size and address pairs, without repeats.
+	 *
+	 * @param array $first  List.
+	 * @param mixed $second List (anything else is ignored).
+	 * @return array
+	 */
+	private static function merge_entries( array $first, $second ) {
+		$seen = array();
+		$out  = array();
+		foreach ( array_merge( $first, is_array( $second ) ? $second : array() ) as $e ) {
+			if ( is_array( $e ) && isset( $e['s'], $e['u'] ) && ! isset( $seen[ $e['s'] . '|' . $e['u'] ] ) ) {
+				$seen[ $e['s'] . '|' . $e['u'] ] = true;
+				$out[]                           = array( 's' => (string) $e['s'], 'u' => (string) $e['u'] );
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * The original file name when it is free, otherwise a unique one. WordPress adds "-1" to names ending in -scaled or -rotated even when
+	 * nothing else has the name, which would break every link to the restored picture.
+	 *
+	 * @param string $dir  Folder.
+	 * @param string $base File name.
+	 * @return string Absolute path.
+	 */
+	private static function exact_or_unique( $dir, $base ) {
+		$path = trailingslashit( $dir ) . $base;
+		return file_exists( $path ) ? trailingslashit( $dir ) . wp_unique_filename( $dir, $base ) : $path;
+	}
+
+	/**
 	 * Put an attachment back the way it was before conversion, from the local backup.
 	 *
 	 * @param int $attachment_id Attachment ID.
@@ -395,13 +493,31 @@ class Converter {
 		if ( '' === $source ) {
 			return new WP_Error( 'timu_formats_backup_missing', __( 'The saved copy of the original could not be found.', 'thisismyurl-image-formats' ) );
 		}
+		if ( ! self::take_lock( $attachment_id ) ) {
+			return new WP_Error( 'timu_formats_locked', __( 'This picture is being changed right now. Please wait a minute and try again.', 'thisismyurl-image-formats' ) );
+		}
+		try {
+			return self::restore_locked( $attachment_id, $info, $source );
+		} finally {
+			self::release_lock( $attachment_id );
+		}
+	}
 
+	/**
+	 * The work of restore_attachment(), run while the lock is held. Everything is copied and checked before anything is removed.
+	 *
+	 * @param int    $attachment_id Attachment ID.
+	 * @param array  $info          The picture's note.
+	 * @param string $source        Absolute path of the saved original.
+	 * @return array|WP_Error
+	 */
+	private static function restore_locked( $attachment_id, array $info, $source ) {
 		$current = get_attached_file( $attachment_id );
 		$dir     = dirname( $current );
-		$name    = wp_unique_filename( $dir, wp_basename( $info['file'] ) );
-		$dest    = trailingslashit( $dir ) . $name;
+		$base    = wp_basename( $info['file'] );
+		$dest    = self::exact_or_unique( $dir, $base );
 
-		// Put the large original back too, when one was kept. Everything is copied and checked before anything is removed.
+		// Put the large original back too, when one was kept.
 		$orig_src  = '';
 		$orig_dest = '';
 		if ( ! empty( $info['backup_original'] ) && 0 === strpos( (string) $info['backup_original'], 'local:' ) ) {
@@ -409,10 +525,11 @@ class Converter {
 			if ( '' === $orig_src ) {
 				return new WP_Error( 'timu_formats_backup_missing', __( 'The saved copy of the original could not be found.', 'thisismyurl-image-formats' ) );
 			}
-			$orig_dest = trailingslashit( $dir ) . wp_unique_filename( $dir, wp_basename( (string) $info['original_image'] ) );
+			$orig_dest = self::exact_or_unique( $dir, wp_basename( (string) $info['original_image'] ) );
 		}
 		$copied = array();
-		foreach ( array( $dest => $source, $orig_dest => $orig_src ) as $to => $from ) {
+		foreach ( array( array( $source, $dest ), array( $orig_src, $orig_dest ) ) as $pair ) {
+			list( $from, $to ) = $pair;
 			if ( '' === $to || '' === $from ) {
 				continue;
 			}
@@ -428,7 +545,13 @@ class Converter {
 			$copied[] = $to;
 		}
 
-		wp_delete_attachment_files( $attachment_id, self::meta_for_delete( $attachment_id ), array(), $current );
+		// Addresses the changed picture has now: links written since the change still need to work after it is undone.
+		$converted_urls = self::url_entries( $attachment_id );
+
+		// If the changed picture was cropped or turned afterwards, its edit copies go too.
+		$edits = get_post_meta( $attachment_id, '_wp_attachment_backup_sizes', true );
+		wp_delete_attachment_files( $attachment_id, self::meta_for_delete( $attachment_id ), is_array( $edits ) ? $edits : array(), $current );
+		delete_post_meta( $attachment_id, '_wp_attachment_backup_sizes' );
 
 		$current_meta = wp_get_attachment_metadata( $attachment_id );
 		self::remember( $dest, is_array( $current_meta ) && isset( $current_meta['image_meta'] ) && is_array( $current_meta['image_meta'] ) ? $current_meta['image_meta'] : array() );
@@ -443,14 +566,32 @@ class Converter {
 			wp_update_attachment_metadata( $attachment_id, $meta );
 		}
 		wp_delete_file( $source );
+		self::tidy_backup_folder( dirname( $source ) );
 		if ( '' !== $orig_src ) {
 			wp_delete_file( $orig_src );
+			self::tidy_backup_folder( dirname( $orig_src ) );
 		}
+
 		delete_post_meta( $attachment_id, self::META_ORIGINAL );
 		delete_post_meta( $attachment_id, self::META_SAVINGS );
-		delete_post_meta( $attachment_id, self::META_OLD_URLS );
+		// Keep the address list: the addresses the changed picture had now point at the restored one.
+		update_post_meta( $attachment_id, self::META_OLD_URLS, self::merge_entries( $converted_urls, get_post_meta( $attachment_id, self::META_OLD_URLS, true ) ) );
 
 		do_action( 'timu_formats_restored', $attachment_id );
 		return array( 'status' => 'restored', 'mime' => $info['mime'] );
+	}
+
+	/**
+	 * Remove a picture's folder inside the backup folder once nothing but the guard file is left in it.
+	 *
+	 * @param string $folder Absolute path.
+	 * @return void
+	 */
+	private static function tidy_backup_folder( $folder ) {
+		$left = array_diff( (array) scandir( $folder ), array( '.', '..', 'index.php' ) );
+		if ( ! $left && 0 === strpos( wp_basename( dirname( $folder ) ), Backup::DIR . '-' ) ) {
+			wp_delete_file( trailingslashit( $folder ) . 'index.php' );
+			rmdir( $folder ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+		}
 	}
 }

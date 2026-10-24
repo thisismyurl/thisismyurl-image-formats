@@ -155,7 +155,7 @@ class Settings {
 	 */
 	private static function choice( $key, $value, $current, $label, $help = '', $best = false ) {
 		$hid = 'timu-h-' . $key . '-' . $value;
-		echo '<label class="timu-ui-choice"><input type="radio" name="' . esc_attr( self::OPTION . '[' . $key . ']' ) . '" value="' . esc_attr( $value ) . '" ' . ( '' !== $help ? 'aria-describedby="' . esc_attr( $hid ) . '" ' : '' ) . checked( $value, $current, false ) . '> ' . esc_html( $label );
+		echo '<label class="timu-ui-choice"><input type="radio" name="' . esc_attr( self::OPTION . '[' . $key . ']' ) . '" value="' . esc_attr( $value ) . '" ' . checked( $value, $current, false ) . '> ' . esc_html( $label );
 		if ( $best ) {
 			echo '<span class="timu-ui-tag">' . esc_html__( 'Recommended', 'thisismyurl-image-formats' ) . '</span>';
 		}

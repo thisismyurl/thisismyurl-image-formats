@@ -89,12 +89,16 @@ class CLI {
 		if ( ! $ids ) {
 			WP_CLI::error( 'Give attachment IDs or --all.' );
 		}
-		$to      = '';
 		$dry     = ! empty( $assoc_args['dry-run'] );
 		$counts  = array( 'converted' => 0, 'would-convert' => 0, 'skipped' => 0, 'failed' => 0 );
 		$saved   = 0;
+		Links::defer( true );
+		$done = 0;
 		foreach ( $ids as $id ) {
-			$r = Converter::convert_attachment( $id, ! empty( $assoc_args['all'] ) ? 'bulk' : 'manual', $to, $dry );
+			if ( 0 === ++$done % 25 && function_exists( 'wp_cache_flush_runtime' ) ) {
+				wp_cache_flush_runtime();
+			}
+			$r = Converter::convert_attachment( $id, ! empty( $assoc_args['all'] ) ? 'bulk' : 'manual', '', $dry );
 			if ( is_wp_error( $r ) ) {
 				++$counts['failed'];
 				WP_CLI::warning( sprintf( '#%d: %s', $id, $r->get_error_message() ) );
@@ -106,6 +110,7 @@ class CLI {
 				WP_CLI::log( sprintf( '#%d: %s %s -> %s%s', $id, $r['status'], $r['from'], $r['to'], isset( $r['reason'] ) ? ' (' . $r['reason'] . ')' : '' ) );
 			}
 		}
+		Links::defer( false );
 		WP_CLI::success( sprintf( '%d converted, %d would convert, %d skipped, %d failed. %s saved.', $counts['converted'], $counts['would-convert'], $counts['skipped'], $counts['failed'], size_format( max( 0, $saved ) ) ?: '0 B' ) );
 	}
 

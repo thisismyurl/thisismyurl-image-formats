@@ -56,7 +56,7 @@ class Actions {
 				echo '<form id="' . esc_attr( self::form_id( $action, $id ) ) . '" class="timu-formats-form" method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
 				echo '<input type="hidden" name="action" value="' . esc_attr( $action ) . '">';
 				echo '<input type="hidden" name="id" value="' . esc_attr( (string) $id ) . '">';
-				wp_nonce_field( $action . '_' . $id );
+				echo '<input type="hidden" name="_wpnonce" value="' . esc_attr( wp_create_nonce( $action . '_' . $id ) ) . '">';
 				echo '</form>';
 			}
 		);
@@ -91,13 +91,15 @@ class Actions {
 		if ( is_wp_error( $r ) ) {
 			self::flash( 'error', $r->get_error_message() );
 		} elseif ( 'converted' === $r['status'] ) {
+			$kept = isset( $r['backup'] ) && 0 === strpos( (string) $r['backup'], 'local:' );
 			self::flash(
 				'success',
 				sprintf(
-					/* translators: 1: new picture type, 2: how much smaller (for example "3 MB") */
-					__( 'Done. This picture is now a %1$s file and takes up %2$s less space. Your original is saved safely, and you can put it back any time.', 'thisismyurl-image-formats' ),
+					/* translators: 1: new picture type, 2: how much smaller (for example "3 MB"), 3: what happened to the original */
+					__( 'Done. This picture is now a %1$s file and takes up %2$s less space. %3$s', 'thisismyurl-image-formats' ),
 					strtoupper( str_replace( 'image/', '', $r['to'] ) ),
-					size_format( max( 0, (int) $r['saved'] ) )
+					size_format( max( 0, (int) $r['saved'] ) ),
+					$kept ? __( 'Your original is saved safely, and you can put it back any time.', 'thisismyurl-image-formats' ) : __( 'Your original was not kept, so it cannot be put back.', 'thisismyurl-image-formats' )
 				)
 			);
 		} else {
@@ -153,6 +155,7 @@ class Actions {
 			'edited in wordpress'           => __( 'This picture was cropped or turned in WordPress. It is left exactly as it is, so your edits stay safe.', 'thisismyurl-image-formats' ),
 			'extra files'                   => __( 'This picture has extra files that belong with it, so it is left exactly as it is.', 'thisismyurl-image-formats' ),
 			'shared file'                   => __( 'Another picture in your Media Library uses the same file, so it is left exactly as it is.', 'thisismyurl-image-formats' ),
+			'type not allowed'              => __( 'Your website does not allow that kind of picture, so this one is left exactly as it is.', 'thisismyurl-image-formats' ),
 		);
 		return isset( $map[ $reason ] ) ? $map[ $reason ] : __( 'Your picture was left exactly as it was.', 'thisismyurl-image-formats' );
 	}
