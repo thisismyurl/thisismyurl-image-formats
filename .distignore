@@ -1,0 +1,15 @@
+.git
+.github
+.gitattributes
+.gitignore
+.distignore
+node_modules
+tests
+phpcs.xml.dist
+composer.json
+composer.lock
+package.json
+README.md
+CONTRIBUTING.md
+*.log
+.DS_Store
