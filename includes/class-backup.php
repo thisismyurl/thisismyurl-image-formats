@@ -2,8 +2,7 @@
 /**
  * Keeping the original so a conversion can be undone.
  *
- * Vault is a soft dependency: when it is installed it records the event and holds the original. When it is not, the original goes to a
- * folder inside uploads. Neither is required for conversion to work, and "none" deletes the original.
+ * The original goes to a folder inside uploads, closed to directory listing. "None" deletes it after a successful conversion.
  *
  * @package ThisIsMyURL\ImageFormats
  */
@@ -13,86 +12,19 @@ namespace ThisIsMyURL\ImageFormats;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Original-file storage and the Vault adapter.
+ * Original-file storage.
  */
 class Backup {
 
 	const DIR = 'timu-formats-backups';
 
 	/**
-	 * Whether the Vault plugin's event API is available.
+	 * Where the original goes, given the setting.
 	 *
-	 * @return bool
-	 */
-	public static function vault_present() {
-		return function_exists( 'timu_vault_begin_event' ) && function_exists( 'timu_vault_complete_event' );
-	}
-
-	/**
-	 * Which store will hold the original, given the setting and what is installed.
-	 *
-	 * @return string vault, local or none.
+	 * @return string local or none.
 	 */
 	public static function mode() {
-		$setting = Settings::value( 'backup' );
-		if ( 'none' === $setting ) {
-			return 'none';
-		}
-		if ( 'auto' === $setting && self::vault_present() ) {
-			return 'vault';
-		}
-		return 'local';
-	}
-
-	/**
-	 * Open a Vault event for an attachment conversion, if Vault is in use.
-	 *
-	 * @param int    $attachment_id Attachment ID, or 0 during upload (no attachment exists yet).
-	 * @param string $label         Human label for Vault's history screen.
-	 * @return int|false Vault event ID, or false when Vault is not in use.
-	 */
-	public static function begin_vault_event( $attachment_id, $label ) {
-		if ( 'vault' !== self::mode() || ! $attachment_id ) {
-			return false;
-		}
-		$depends_on = function_exists( 'timu_vault_get_latest_event_id' ) ? timu_vault_get_latest_event_id( $attachment_id ) : 0;
-		return timu_vault_begin_event(
-			$attachment_id,
-			array(
-				'operation'       => 'convert_image_format',
-				'operation_label' => $label,
-				'plugin'          => 'thisismyurl-image-formats',
-				'depends_on'      => $depends_on,
-			)
-		);
-	}
-
-	/**
-	 * Close a Vault event with what the file became.
-	 *
-	 * @param int|false $event_id Event ID from begin_vault_event().
-	 * @param int       $attachment_id Attachment ID.
-	 * @param string    $path          New file path.
-	 * @param string    $mime          New MIME type.
-	 * @param bool      $success       Whether the conversion succeeded.
-	 * @return void
-	 */
-	public static function complete_vault_event( $event_id, $attachment_id, $path, $mime, $success ) {
-		if ( ! $event_id ) {
-			return;
-		}
-		timu_vault_complete_event(
-			$event_id,
-			array(
-				'file_after' => array(
-					'path' => $path,
-					'mime' => $mime,
-					'size' => file_exists( $path ) ? (int) filesize( $path ) : 0,
-				),
-				'meta_after' => wp_get_attachment_metadata( $attachment_id ),
-				'success'    => (bool) $success,
-			)
-		);
+		return 'none' === Settings::value( 'backup' ) ? 'none' : 'local';
 	}
 
 	/**

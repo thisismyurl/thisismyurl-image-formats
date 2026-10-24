@@ -31,7 +31,7 @@ class Settings {
 			'graphic_format'   => 'png',   // Target for BMP and TIFF: png or webp.
 			'photo_format'     => 'auto',  // Target for HEIC and HEIF: auto, avif, webp, jpeg.
 			'quality'          => 82,
-			'backup'           => 'auto',  // auto (Vault if present, else local), local, none.
+			'backup'           => 'local', // local (a folder inside uploads) or none.
 		);
 	}
 
@@ -76,7 +76,7 @@ class Settings {
 		$out['web_format']     = $pick( isset( $input['web_format'] ) ? $input['web_format'] : '', array( 'auto', 'avif', 'webp' ), 'auto' );
 		$out['graphic_format'] = $pick( isset( $input['graphic_format'] ) ? $input['graphic_format'] : '', array( 'png', 'webp' ), 'png' );
 		$out['photo_format']   = $pick( isset( $input['photo_format'] ) ? $input['photo_format'] : '', array( 'auto', 'avif', 'webp', 'jpeg' ), 'auto' );
-		$out['backup']         = $pick( isset( $input['backup'] ) ? $input['backup'] : '', array( 'auto', 'local', 'none' ), 'auto' );
+		$out['backup']         = $pick( isset( $input['backup'] ) ? $input['backup'] : '', array( 'local', 'none' ), 'local' );
 
 		$quality        = isset( $input['quality'] ) ? (int) $input['quality'] : 82;
 		$out['quality'] = max( 40, min( 100, $quality ) );
@@ -126,7 +126,6 @@ class Settings {
 		}
 		$s       = self::get();
 		$targets = Capabilities::targets();
-		$vault   = Backup::vault_present();
 		$name    = self::OPTION;
 		?>
 		<div class="wrap">
@@ -190,8 +189,7 @@ class Settings {
 						<th scope="row"><label for="timu-backup"><?php esc_html_e( 'Keep the original', 'thisismyurl-image-formats' ); ?></label></th>
 						<td>
 							<select id="timu-backup" name="<?php echo esc_attr( $name ); ?>[backup]">
-								<option value="auto" <?php selected( 'auto', $s['backup'] ); ?>><?php echo esc_html( $vault ? __( 'In Vault (found on this site)', 'thisismyurl-image-formats' ) : __( 'In a backup folder inside uploads (Vault not installed)', 'thisismyurl-image-formats' ) ); ?></option>
-								<option value="local" <?php selected( 'local', $s['backup'] ); ?>><?php esc_html_e( 'In a backup folder inside uploads', 'thisismyurl-image-formats' ); ?></option>
+								<option value="local" <?php selected( 'local', $s['backup'] ); ?>><?php esc_html_e( 'In a backup folder inside uploads (recommended)', 'thisismyurl-image-formats' ); ?></option>
 								<option value="none" <?php selected( 'none', $s['backup'] ); ?>><?php esc_html_e( 'Do not keep it (the original is deleted)', 'thisismyurl-image-formats' ); ?></option>
 							</select>
 						</td>

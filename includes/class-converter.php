@@ -135,19 +135,14 @@ class Converter {
 	 * @return array|WP_Error
 	 */
 	private static function convert_attachment_locked( $attachment_id, $mime, $path, $target, $context, $old_size ) {
-		$label    = sprintf( /* translators: 1: source format, 2: target format */ __( 'Converting %1$s to %2$s', 'thisismyurl-image-formats' ), strtoupper( str_replace( 'image/', '', $mime ) ), strtoupper( str_replace( 'image/', '', $target ) ) );
-		$event_id = Backup::begin_vault_event( $attachment_id, $label );
-
 		$new = self::convert_file( $path, $mime, $target );
 		if ( is_wp_error( $new ) ) {
-			Backup::complete_vault_event( $event_id, $attachment_id, $path, $mime, false );
 			return $new;
 		}
 
 		// A modern format should be an improvement. If JPEG or PNG would grow, leave them as they are.
 		if ( in_array( $mime, array( 'image/jpeg', 'image/png' ), true ) && $old_size > 0 && $new['size'] >= $old_size ) {
 			wp_delete_file( $new['path'] );
-			Backup::complete_vault_event( $event_id, $attachment_id, $path, $mime, false );
 			return array( 'status' => 'skipped', 'reason' => 'converted file was not smaller', 'from' => $mime, 'to' => $mime, 'saved' => 0 );
 		}
 
@@ -162,12 +157,9 @@ class Converter {
 			$kept = Backup::store_local( $path, $attachment_id );
 			if ( false === $kept ) {
 				wp_delete_file( $new['path'] );
-				Backup::complete_vault_event( $event_id, $attachment_id, $path, $mime, false );
-				return new WP_Error( 'timu_formats_backup', __( 'The original could not be backed up, so nothing was changed.', 'thisismyurl-image-formats' ) );
+					return new WP_Error( 'timu_formats_backup', __( 'The original could not be backed up, so nothing was changed.', 'thisismyurl-image-formats' ) );
 			}
 			$stored = 'local:' . $kept;
-		} elseif ( 'vault' === $mode ) {
-			$stored = 'vault';
 		}
 
 		// Remove the old file and its generated sizes, then point the attachment at the new file.
@@ -198,8 +190,6 @@ class Converter {
 		);
 		update_post_meta( $attachment_id, self::META_SAVINGS, $saved );
 		update_post_meta( $attachment_id, self::META_OLD_URLS, $old_urls );
-
-		Backup::complete_vault_event( $event_id, $attachment_id, $new['path'], $target, true );
 
 		/**
 		 * Fires after an attachment was converted.
@@ -265,8 +255,7 @@ class Converter {
 			return new WP_Error( 'timu_formats_nothing', __( 'That image has not been converted by this plugin.', 'thisismyurl-image-formats' ) );
 		}
 		if ( 0 !== strpos( (string) $info['backup'], 'local:' ) ) {
-			$why = 'vault' === $info['backup'] ? __( 'The original is held in Vault. Restore it from Vault.', 'thisismyurl-image-formats' ) : __( 'No original was kept for that image.', 'thisismyurl-image-formats' );
-			return new WP_Error( 'timu_formats_no_backup', $why );
+			return new WP_Error( 'timu_formats_no_backup', __( 'No original was kept for that image.', 'thisismyurl-image-formats' ) );
 		}
 		$source = Backup::resolve( substr( $info['backup'], 6 ) );
 		if ( '' === $source ) {

@@ -73,7 +73,6 @@ class Upload {
 		$mode   = Backup::mode();
 		$stored = 'none';
 		if ( 'none' !== $mode ) {
-			// No attachment exists yet, so Vault cannot hold this one: the local folder keeps the original either way.
 			$kept = Backup::store_local( $upload['file'], wp_basename( $new['path'] ) );
 			if ( false === $kept ) {
 				wp_delete_file( $new['path'] );

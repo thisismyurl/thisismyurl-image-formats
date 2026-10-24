@@ -21,7 +21,7 @@ What it does now:
 * Converts BMP, TIFF, HEIC and HEIF uploads as they arrive: BMP and TIFF to PNG (or WebP), HEIC and HEIF to AVIF, WebP or JPEG, whichever your server can write.
 * Optionally converts JPEG and PNG uploads to WebP or AVIF. This is off by default. A converted file that would be larger than the original is discarded.
 * Converts what is already in your Media Library from the command line, with a dry run.
-* Keeps the original so a conversion can be undone: in Vault when Vault is installed, otherwise in a folder inside your uploads folder.
+* Keeps the original so a conversion can be undone, in a folder inside your uploads folder.
 * Shows on each converted image what it was and how much space was saved.
 
 What it does not do yet: update references to a converted image inside your posts and pages, handle SVG, or convert in bulk from the dashboard. These are the next phases.
@@ -35,7 +35,7 @@ What it does not do yet: update references to a converted image inside your post
 
 = Does it delete my originals? =
 
-Not by default. The original goes to a backup folder inside your uploads folder, or into Vault if you use it. You can choose to keep none, in which case the original is deleted after a successful conversion.
+Not by default. The original goes to a backup folder inside your uploads folder. You can choose to keep none, in which case the original is deleted after a successful conversion.
 
 = What if my server cannot read or write a format? =
 
@@ -48,4 +48,4 @@ The upload goes through unchanged. The settings screen shows what your server ca
 == Changelog ==
 
 = 0.6297.1 =
-* First development build: capabilities check, conversion policy, verified converter, upload hook, local and Vault backup, restore, settings screen and WP-CLI.
+* First development build: capabilities check, conversion policy, verified converter, upload hook, local backup, restore, settings screen and WP-CLI.
