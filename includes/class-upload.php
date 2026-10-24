@@ -70,6 +70,9 @@ class Upload {
 			return $upload;
 		}
 
+		$image_meta = wp_read_image_metadata( $upload['file'] );
+		Converter::remember( $new['path'], is_array( $image_meta ) ? $image_meta : array() );
+
 		$mode   = Backup::mode();
 		$stored = 'none';
 		if ( 'none' !== $mode ) {

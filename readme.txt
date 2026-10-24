@@ -41,6 +41,18 @@ Not by default. The original goes to a backup folder inside your uploads folder.
 
 The upload goes through unchanged. The settings screen shows what your server can write, and the plugin only offers formats it can actually produce.
 
+= What happens to alt text, titles and captions? =
+
+They stay exactly as they are. A conversion changes the file, not the attachment, so the ID, title, caption, description and alt text are untouched. Camera and exposure details are carried over, and WordPress makes a fresh set of thumbnails from the new file for every size your theme and plugins register.
+
+= Does it resize images? =
+
+No. It changes the format, not the dimensions. WordPress still scales very large images down to its own size limit (2560 pixels by default) after the conversion, and keeps the full-size file; this plugin backs that file up with the original and puts it back on restore.
+
+= Is the new file always smaller? =
+
+For JPEG and PNG, yes: a converted file that would be the same size or larger is thrown away and the original kept. BMP, TIFF and HEIC are converted so browsers can show them, and they almost always shrink, but that is not what decides it.
+
 = Which command-line commands are there? =
 
 `wp image-formats status`, `wp image-formats convert <id>...` or `--all` (with `--dry-run`), and `wp image-formats restore <id>...`.
